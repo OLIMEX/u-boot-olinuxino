@@ -1,0 +1,3 @@
+# ARCH	platform	defconfig	targets
+# --------------------------------------------
+arm64	a64-olinuxino	A64-OLinuXino	u-boot.bin spl/sunxi-spl.bin u-boot-nodtb.bin arch/arm/dts/sun50i-a64-olinuxino.dtb

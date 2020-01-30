@@ -1,0 +1,14 @@
+Add the debian revision to the U-boot version, which is displayed at
+boot and can be helpful to determine which specific version is used.
+
+--- a/Makefile
++++ b/Makefile
+@@ -424,7 +424,7 @@
+ 
+ # Read UBOOTRELEASE from include/config/uboot.release (if it exists)
+ UBOOTRELEASE = $(shell cat include/config/uboot.release 2> /dev/null)
+-UBOOTVERSION = $(VERSION)$(if $(PATCHLEVEL),.$(PATCHLEVEL)$(if $(SUBLEVEL),.$(SUBLEVEL)))$(EXTRAVERSION)
++UBOOTVERSION = $(VERSION)$(if $(PATCHLEVEL),.$(PATCHLEVEL)$(if $(SUBLEVEL),.$(SUBLEVEL)))$(EXTRAVERSION)$(DEBIAN_REVISION)
+ 
+ export VERSION PATCHLEVEL SUBLEVEL UBOOTRELEASE UBOOTVERSION
+ export ARCH CPU BOARD VENDOR SOC CPUDIR BOARDDIR

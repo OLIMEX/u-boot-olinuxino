@@ -1,0 +1,60 @@
+#!/usr/bin/make -f
+
+include /usr/share/dpkg/architecture.mk
+include /usr/share/dpkg/pkg-info.mk
+export DEBIAN_REVISION ?= $(shell echo $(DEB_VERSION) | sed -e 's,.*+olimex,+olimex,')
+
+# Support CROSS_COMPILING
+ifneq ($(DEB_BUILD_GNU_TYPE),$(DEB_HOST_GNU_TYPE))
+export CROSS_COMPILE ?= $(DEB_HOST_GNU_TYPE)-
+endif
+
+# Support parallel build using DEB_BUILD_OPTIONS=parallel=N
+ifneq (,$(filter parallel=%,$(DEB_BUILD_OPTIONS)))
+  DEB_UBOOT_FLAGS += -j$(patsubst parallel=%,%,$(filter parallel=%,$(DEB_BUILD_OPTIONS)))
+endif
+
+# Enable verbose build by default, disable when terse is specified.
+ifneq (,$(filter terse,$(DEB_BUILD_OPTIONS)))
+VERBOSE=0
+else
+VERBOSE=1
+endif
+
+# the upstream build passes LDFLAGS directly to ld instead of calling gcc for
+# linking; so instead of passing -Wl,foo in LDFLAGS as in automake builds, one
+# should set LDFLAGS to foo directly
+comma := ,
+LDFLAGS := $(patsubst -Wl$(comma)%,%,$(LDFLAGS))
+
+%:
+	dh $@
+
+override_dh_auto_build-arch: TARGETARCH := $(DEB_HOST_ARCH)
+override_dh_auto_build-arch: build-targets
+
+override_dh_auto_build-indep: TARGETARCH := all
+override_dh_auto_build-indep: build-targets
+
+build-targets:
+	echo run build-targets for $(TARGETARCH)
+	set -e; grep ^$(TARGETARCH)[^a-z0-9] debian/targets \
+	    | while read arch platform defconfig targets; do \
+	        builddir=debian/build/$$platform; \
+		mkdir -p $$builddir; \
+		$(MAKE) V=$(VERBOSE) O=$$builddir $${defconfig}_defconfig; \
+		$(MAKE) V=$(VERBOSE) $(DEB_UBOOT_FLAGS) O=$$builddir all; \
+		for target in $$targets; do \
+			chmod -x $$builddir/$$target; \
+			echo $$builddir/$$target /usr/lib/u-boot/$$platform/ \
+				>> debian/build/targets; \
+		done ; \
+		cp $$builddir/.config $$builddir/config.$$platform; \
+		echo $$builddir/config.$$platform /usr/share/doc/u-boot-olinuxino/configs/ \
+			>> debian/build/targets; \
+	done
+
+override_dh_clean:
+	rm -rf debian/build/
+	rm -f linux.itb linux.its
+	dh_clean

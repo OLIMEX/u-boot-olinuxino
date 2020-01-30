@@ -1,0 +1,5 @@
+#!/bin/sh
+cp board/sunxi/mksunxi_fit_atf.sh debian/build/mksunxi_fit_atf
+echo debian/build/mksunxi_fit_atf /usr/bin/
+echo debian/bin/u-boot-install /usr/bin/
+cat "debian/build/targets"
