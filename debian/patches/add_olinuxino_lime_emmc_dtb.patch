@@ -1,0 +1,53 @@
+diff --git a/arch/arm/dts/Makefile b/arch/arm/dts/Makefile
+index 0127a91a82..6f83598011 100644
+--- a/arch/arm/dts/Makefile
++++ b/arch/arm/dts/Makefile
+@@ -469,9 +469,11 @@ dtb-$(CONFIG_MACH_SUN7I) += \
+ 	sun7i-a20-m5.dtb \
+ 	sun7i-a20-mk808c.dtb \
+ 	sun7i-a20-olimex-som-evb.dtb \
++	sun7i-a20-olimex-som-evb-emmc.dtb \
+ 	sun7i-a20-olimex-som204-evb.dtb \
+ 	sun7i-a20-olimex-som204-evb-emmc.dtb \
+ 	sun7i-a20-olinuxino-lime.dtb \
++	sun7i-a20-olinuxino-lime-emmc.dtb \
+ 	sun7i-a20-olinuxino-lime2.dtb \
+ 	sun7i-a20-olinuxino-lime2-emmc.dtb \
+ 	sun7i-a20-olinuxino-micro.dtb \
+diff --git a/arch/arm/dts/sun7i-a20-olinuxino-lime-emmc.dts b/arch/arm/dts/sun7i-a20-olinuxino-lime-emmc.dts
+new file mode 100644
+index 0000000000..a526728580
+--- /dev/null
++++ b/arch/arm/dts/sun7i-a20-olinuxino-lime-emmc.dts
+@@ -0,0 +1,31 @@
++// SPDX-License-Identifier: (GPL-2.0+ OR MIT)
++/*
++ * Copyright (C) 2018 Olimex Ltd.
++ *   Author: Stefan Mavrodiev <stefan@olimex.com>
++ */
++#include "sun7i-a20-olinuxino-lime.dts"
++
++/ {
++	model = "Olimex A20-OLinuXino-LIME-eMMC";
++	compatible = "olimex,a20-olinuxino-lime-emmc", "allwinner,sun7i-a20";
++
++	mmc2_pwrseq: pwrseq {
++		compatible = "mmc-pwrseq-emmc";
++		reset-gpios = <&pio 2 16 GPIO_ACTIVE_LOW>;
++	};
++};
++
++&mmc2 {
++	vmmc-supply = <&reg_vcc3v3>;
++	vqmmc-supply = <&reg_vcc3v3>;
++	bus-width = <4>;
++	non-removable;
++	mmc-pwrseq = <&mmc2_pwrseq>;
++	status = "okay";
++
++	emmc: emmc@0 {
++		reg = <0>;
++		compatible = "mmc-card";
++		broken-hpi;
++	};
++};
