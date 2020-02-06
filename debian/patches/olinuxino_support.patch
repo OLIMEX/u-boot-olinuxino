@@ -1,0 +1,4305 @@
+diff --git a/arch/arm/include/asm/arch-sunxi/lcdc.h b/arch/arm/include/asm/arch-sunxi/lcdc.h
+index 90216bcfd5..11ff84f9ee 100644
+--- a/arch/arm/include/asm/arch-sunxi/lcdc.h
++++ b/arch/arm/include/asm/arch-sunxi/lcdc.h
+@@ -88,6 +88,7 @@ struct sunxi_lcdc_reg {
+ #else
+ #define SUNXI_LCDC_TCON0_LVDS_CLK_SEL_TCON0	0 /* NA */
+ #endif
++#define SUNXI_LCDC_TCON0_LVDS_INTF_CH(n)	((n) << 30)
+ #define SUNXI_LCDC_TCON0_LVDS_INTF_BITWIDTH(n)	((n) << 26)
+ #define SUNXI_LCDC_TCON0_LVDS_INTF_ENABLE	(1 << 31)
+ #define SUNXI_LCDC_TCON0_IO_POL_DCLK_PHASE(x)	((x) << 28)
+diff --git a/arch/arm/include/asm/arch-sunxi/spl.h b/arch/arm/include/asm/arch-sunxi/spl.h
+index 8c916e8c75..968866b321 100644
+--- a/arch/arm/include/asm/arch-sunxi/spl.h
++++ b/arch/arm/include/asm/arch-sunxi/spl.h
+@@ -86,5 +86,6 @@ typedef char boot_file_head_not_multiple_of_32[1 - 2*(sizeof(struct boot_file_he
+ #define is_boot0_magic(addr)	(memcmp((void *)addr, BOOT0_MAGIC, 8) == 0)
+ 
+ uint32_t sunxi_get_boot_device(void);
++uint32_t sunxi_spi_is_present(void);
+ 
+ #endif
+diff --git a/arch/arm/mach-sunxi/Kconfig b/arch/arm/mach-sunxi/Kconfig
+index 16d41b83af..5011857078 100644
+--- a/arch/arm/mach-sunxi/Kconfig
++++ b/arch/arm/mach-sunxi/Kconfig
+@@ -321,6 +321,44 @@ config MACH_SUN8I
+ 	default y if MACH_SUN8I_R40
+ 	default y if MACH_SUN8I_V3S
+ 
++if MACH_SUN7I
++choice
++	prompt "SUNXI profile select"
++
++config TARGET_SUN7I_DEFAULT
++	bool "Default sunxi target"
++	---help---
++	Use the default profile for sunxi boards
++
++config TARGET_A20_OLINUXINO
++	bool "A20-OLinuXino board"
++	select I2C1_ENABLE
++	select SPL_SPI_SUNXI
++	---help---
++	Use board autodetection feature on A20-OLinuXino boards
++
++endchoice
++endif
++
++if MACH_SUN50I
++choice
++	prompt "SUNXI profile select"
++
++config TARGET_SUN50I_DEFAULT
++	bool "Default sunxi target"
++	---help---
++	Use the default profile for sunxi boards
++
++config TARGET_A64_OLINUXINO
++	bool "A64-OLinuXino board"
++	select I2C0_ENABLE
++	select SPL_SPI_SUNXI
++	---help---
++	Use A64-OLinuXino board
++
++endchoice
++endif
++
+ config RESERVE_ALLWINNER_BOOT0_HEADER
+ 	bool "reserve space for Allwinner boot0 header"
+ 	select ENABLE_ARM_SOC_BOOT0_HOOK
+@@ -542,6 +580,7 @@ config SYS_CLK_FREQ
+ 	default 1008000000 if MACH_SUN9I
+ 	default 888000000 if MACH_SUN50I_H6
+ 
++if !TARGET_A20_OLINUXINO && !TARGET_A64_OLINUXINO
+ config SYS_CONFIG_NAME
+ 	default "sun4i" if MACH_SUN4I
+ 	default "sun5i" if MACH_SUN5I
+@@ -554,10 +593,19 @@ config SYS_CONFIG_NAME
+ 
+ config SYS_BOARD
+ 	default "sunxi"
++endif
+ 
+ config SYS_SOC
+ 	default "sunxi"
+ 
++if TARGET_A20_OLINUXINO
++	source "board/olimex/a20_olinuxino/Kconfig"
++endif
++
++if TARGET_A64_OLINUXINO
++	source "board/olimex/a64_olinuxino/Kconfig"
++endif
++
+ config UART0_PORT_F
+ 	bool "UART0 on MicroSD breakout board"
+ 	default n
+@@ -904,6 +952,10 @@ config VIDEO_LCD_IF_PARALLEL
+ config VIDEO_LCD_IF_LVDS
+ 	bool
+ 
++config VIDEO_LCD_OLINUXINO
++	bool
++	default y if SUNXI_DE2 && TARGET_A64_OLINUXINO
++
+ config SUNXI_DE2
+ 	bool
+ 	default n
+@@ -934,6 +986,11 @@ config VIDEO_LCD_PANEL_LVDS
+ 	bool "Generic lvds interface LCD panel"
+ 	select VIDEO_LCD_IF_LVDS
+ 
++config VIDEO_LCD_PANEL_OLINUXINO
++	bool "LCD-OLinuXino LCD panel support"
++	select I2C2_ENABLE if TARGET_A20_OLINUXINO
++	select VIDEO_LCD_OLINUXINO
++
+ config VIDEO_LCD_PANEL_MIPI_4_LANE_513_MBPS_VIA_SSD2828
+ 	bool "MIPI 4-lane, 513Mbps LCD panel via SSD2828 bridge chip"
+ 	select VIDEO_LCD_SSD2828
+diff --git a/arch/arm/mach-sunxi/spl_spi_sunxi.c b/arch/arm/mach-sunxi/spl_spi_sunxi.c
+index 043d9f6ead..fd6446daf9 100644
+--- a/arch/arm/mach-sunxi/spl_spi_sunxi.c
++++ b/arch/arm/mach-sunxi/spl_spi_sunxi.c
+@@ -307,5 +307,40 @@ static int spl_spi_load_image(struct spl_image_info *spl_image,
+ 
+ 	return ret;
+ }
++
++uint32_t sunxi_spi_is_present(void)
++{
++	u8 jedec_id[3];
++	spi0_init();
++
++	writel(4, SUN6I_SPI0_MBC);	/* Burst counter (total bytes) */
++	writel(1, SUN6I_SPI0_MTC);	/* Transfer counter (bytes to send) */
++	writel(1, SUN6I_SPI0_BCC);	/* SUN6I also needs this */
++
++	/* Send the JEDEC ID (9Fh) command header */
++	writeb(0x9F, SUN6I_SPI0_TXD);
++
++	/* Start the data transfer */
++	setbits_le32(SUN6I_SPI0_TCR, SUN6I_TCR_XCH);
++
++	/* Wait until everything is received in the RX FIFO */
++	while ((readl(SUN6I_SPI0_FIFO_STA) & 0x7F) < 4);
++
++	/* Read the data */
++	readb(SUN6I_SPI0_RXD);
++	jedec_id[0] = readb(SUN6I_SPI0_RXD);
++	jedec_id[1] = readb(SUN6I_SPI0_RXD);
++	jedec_id[2] = readb(SUN6I_SPI0_RXD);
++
++	spi0_deinit();
++
++	/* If all bytes are 0x00 or 0xFF there is no flash */
++	if ((jedec_id[0] == 0x00 && jedec_id[1] == 0x00 && jedec_id[2] == 0x00) ||
++	    (jedec_id[0] == 0xFF && jedec_id[1] == 0xFF && jedec_id[2] == 0xFF))
++		return 0;
++
++	return 1;
++}
++
+ /* Use priorty 0 to override the default if it happens to be linked in */
+ SPL_LOAD_IMAGE_METHOD("sunxi SPI", 0, BOOT_DEVICE_SPI, spl_spi_load_image);
+diff --git a/board/olimex/a20_olinuxino/Kconfig b/board/olimex/a20_olinuxino/Kconfig
+new file mode 100644
+index 0000000000..076df0fd1c
+--- /dev/null
++++ b/board/olimex/a20_olinuxino/Kconfig
+@@ -0,0 +1,10 @@
++if TARGET_A20_OLINUXINO
++config SYS_BOARD
++	default "a20_olinuxino"
++
++config SYS_VENDOR
++	default "olimex"
++
++config SYS_CONFIG_NAME
++	default "a20_olinuxino"
++endif
+diff --git a/board/olimex/a20_olinuxino/MAINTAINERS b/board/olimex/a20_olinuxino/MAINTAINERS
+new file mode 100644
+index 0000000000..48dac6a7f9
+--- /dev/null
++++ b/board/olimex/a20_olinuxino/MAINTAINERS
+@@ -0,0 +1,5 @@
++M:      Stefan Mavrodiev <stefan@olimex.com>
++S:      Maintained
++F:      board/olimex/a20-olinuxino
++F:	include/configs/a20_olinuxino.h
++F:      configs/A20-OLinuXino_defconfig
+diff --git a/board/olimex/a20_olinuxino/Makefile b/board/olimex/a20_olinuxino/Makefile
+new file mode 100644
+index 0000000000..afb2d08a6d
+--- /dev/null
++++ b/board/olimex/a20_olinuxino/Makefile
+@@ -0,0 +1,19 @@
++# SPDX-License-Identifier: GPL-2.0+
++#
++# Makefile
++#
++# Copyright (C) 2019 Olimex Ltd.
++#   Author: Stefan Mavrodiev <stefan@olimex.com>
++
++obj-y	+= board.o
++obj-y	+= gmac.o
++obj-y	+= ../common/sunxi/board.o
++obj-y	+= ../common/sys_eeprom.o
++obj-y	+= ../../sunxi/dram_sun5i_auto.o
++
++ifndef CONFIG_SPL_BUILD
++obj-y				+= ../common/boards.o
++obj-y				+= ../common/cmd.o
++obj-$(CONFIG_OF_BOARD_FIXUP)	+= fdt.o
++obj-$(CONFIG_VIDEO_LCD_OLINUXINO) += ../common/lcd_olinuxino.o
++endif
+diff --git a/board/olimex/a20_olinuxino/board.c b/board/olimex/a20_olinuxino/board.c
+new file mode 100644
+index 0000000000..9d4fd004e2
+--- /dev/null
++++ b/board/olimex/a20_olinuxino/board.c
+@@ -0,0 +1,236 @@
++/*
++ * Copyright (C) 2020 Olimex Ltd.
++ *   Author: Stefan Mavrodiev <stefan@olimex.com>
++ *
++ * SPDX-License-Identifier: (GPL-2.0+ OR MIT)
++ */
++
++#include <common.h>
++#include <env_internal.h>
++#include <mmc.h>
++#include <spl.h>
++#include <asm/arch/gpio.h>
++#include <asm/arch/mmc.h>
++#include <asm/arch/spl.h>
++#include <asm/gpio.h>
++
++#include <olimex/boards.h>
++#include <olimex/sys_eeprom.h>
++
++DECLARE_GLOBAL_DATA_PTR;
++
++#ifdef CONFIG_SPL_BUILD
++void spl_board_init(void)
++{
++	uint32_t bootdev;
++
++	printf("Loading configuration from EEPROM: ");
++
++	if (!olinuxino_i2c_eeprom_read()) {
++		printf("OK\n");
++		printf("Verifying data: ");
++
++		if (olinuxino_eeprom_is_valid()) {
++			printf("OK\n");
++			return;
++		}
++		printf("Error\n");
++	}
++	printf("Error\n");
++
++	/* If booted from eMMC/MMC try loading configuration */
++	bootdev = spl_boot_device();
++	if (bootdev == BOOT_DEVICE_MMC1 || bootdev == BOOT_DEVICE_MMC2) {
++		printf("Loading configuration from MMC: ");
++		if (!olinuxino_mmc_eeprom_read()) {
++			printf("OK\n");
++			printf("Verifying data: ");
++
++			if (olinuxino_eeprom_is_valid()) {
++				printf("OK\n");
++				return;
++			}
++			printf("Error\n");
++		}
++		printf("Error\n");
++	}
++
++	printf("The board cannot be detected!\n");
++	printf("Using \'A20-OLinuXino-LIME\' as fallback configuration.\n");
++
++	eeprom->header = OLINUXINO_EEPROM_MAGIC;
++	eeprom->id = 7739;
++	eeprom->revision.major = 'A';
++	eeprom->revision.minor = 0;
++}
++#endif /* CONFIG_SPL_BUILD */
++
++#ifdef CONFIG_DISPLAY_BOARDINFO
++int show_board_info(void)
++{
++	char mac[17], rev[3];
++	const char *name;
++
++	/**
++	 * In case of lowercase revision number, rewrite eeprom
++	 */
++	if (eeprom->revision.major >= 'a' && eeprom->revision.major <= 'z') {
++		eeprom->revision.major -= 0x20;
++
++		olinuxino_i2c_eeprom_write();
++	}
++
++	/* Get board name and compare if with eeprom content */
++	name = olinuxino_get_board_name();
++
++	olinuxino_get_board_revision(rev);
++	printf("%-7s%s Rev.%s", "ID:", name, rev);
++	printf("\n%-7s%08X\n", "SN:", eeprom->serial);
++
++	olinuxino_get_board_mac(mac);
++	printf("%-7s%s\n", "MAC:", mac);
++
++	return 0;
++}
++#endif
++
++#ifdef CONFIG_BOARD_LATE_INIT
++int board_late_init(void)
++{
++	enum olinuxino_family family = olinuxino_get_board_family();
++	int pin;
++
++	if (family == OLINUXINO_MICRO)
++ 		pin = sunxi_name_to_gpio("PB8");
++	else
++		pin = sunxi_name_to_gpio("PC3");
++
++	gpio_request(pin, "satapwr");
++	gpio_direction_output(pin, 1);
++	/* Give attached sata device time to power-up to avoid link timeouts */
++	mdelay(500);
++
++	/*
++	 * A20-SOM204 needs manual reset for rt8723bs chip
++	 */
++	if (family == OLINUXINO_SOM204) {
++		pin = sunxi_name_to_gpio("PB11");
++
++		gpio_request(pin, "btpwr");
++		gpio_direction_output(pin, 0);
++		mdelay(100);
++		gpio_direction_output(pin, 1);
++	}
++
++	return 0;
++}
++#endif /* CONFIG_BOARD_LATE_INIT */
++
++#ifdef CONFIG_MULTI_DTB_FIT
++int board_fit_config_name_match(const char *name)
++{
++	const char *dtb = olinuxino_get_board_fdt();
++
++	return (!strncmp(name, dtb, strlen(dtb))) ? 0 : -1;
++}
++#endif /* CONFIG_MULTI_DTB_FIT */
++
++#ifdef CONFIG_ENV_IS_IN_EXT4
++const char *env_ext4_get_dev_part(void)
++{
++	switch (sunxi_get_boot_device()) {
++	case BOOT_DEVICE_BOARD:
++		if (eeprom->config.storage == 'e')
++			return "1:auto";
++		else
++			return "0:auto";
++	case BOOT_DEVICE_MMC1:
++		return "0:auto";
++	case BOOT_DEVICE_MMC2:
++		return "1:auto";
++	default:
++		return CONFIG_ENV_EXT4_DEVICE_AND_PART;
++	}
++}
++#endif /* CONFIG_ENV_IS_IN_EXT4 */
++
++#ifdef CONFIG_ENV_IS_IN_FAT
++const char *env_fat_get_dev_part(void)
++{
++	switch (sunxi_get_boot_device()) {
++	case BOOT_DEVICE_BOARD:
++		if (eeprom->config.storage == 'e')
++			return "1:auto";
++		else
++			return "0:auto";
++	case BOOT_DEVICE_MMC1:
++		return "0:auto";
++	case BOOT_DEVICE_MMC2:
++		return "1:auto";
++	default:
++		return CONFIG_ENV_FAT_DEVICE_AND_PART;
++	}
++}
++#endif /* CONFIG_ENV_IS_IN_FAT */
++
++#if CONFIG_ENV_IS_IN_SPI_FLASH
++static enum env_location env_get_location_spi(int prio)
++{
++	switch (prio) {
++	case 0:
++		return ENVL_SPI_FLASH;
++	case 1:
++		return ENVL_EXT4;
++	case 2:
++		return ENVL_FAT;
++	default:
++		break;
++	}
++
++	return ENVL_UNKNOWN;
++}
++#endif
++
++static enum env_location env_get_location_default(int prio)
++{
++	switch (prio) {
++	case 0:
++		return ENVL_EXT4;
++	case 1:
++		return ENVL_FAT;
++	default:
++		break;
++	}
++
++	return ENVL_UNKNOWN;
++}
++
++enum env_location env_get_location(enum env_operation op, int prio)
++{
++	uint32_t boot = sunxi_get_boot_device();
++
++	switch (boot) {
++	case BOOT_DEVICE_BOARD:
++#ifdef CONFIG_ENV_IS_IN_SPI_FLASH
++		if (olinuxino_board_has_spi())
++			return env_get_location_spi(prio);
++		else
++#endif
++			return env_get_location_default(prio);
++
++#ifdef CONFIG_ENV_IS_IN_SPI_FLASH
++	case BOOT_DEVICE_SPI:
++		return env_get_location_spi(prio);
++#endif
++
++	case BOOT_DEVICE_MMC1:
++	case BOOT_DEVICE_MMC2:
++		break;
++
++	default:
++		break;
++
++	}
++
++	return env_get_location_default(prio);
++}
+diff --git a/board/olimex/a20_olinuxino/fdt.c b/board/olimex/a20_olinuxino/fdt.c
+new file mode 100644
+index 0000000000..b560a1e525
+--- /dev/null
++++ b/board/olimex/a20_olinuxino/fdt.c
+@@ -0,0 +1,117 @@
++/*
++ * Copyright (C) 2019 Olimex Ltd.
++ *   Author: Stefan Mavrodiev <stefan@olimex.com>
++ *
++ * SPDX-License-Identifier: (GPL-2.0+ OR MIT)
++ */
++#include <common.h>
++
++#include <olimex/boards.h>
++
++static int _fdt_path_offset(void *fdt, const char *path)
++{
++	int offset;
++
++	offset = fdt_path_offset(fdt, path);
++	if (offset < 0)
++		debug("%s: not found: %s (%d)\n",
++		      path, fdt_strerror(offset), offset);
++
++	return offset;
++}
++
++static int board_enable_spi_flash(void *fdt)
++{
++	uint32_t phandle;
++	int offset, ret = 0;
++
++	offset = _fdt_path_offset(fdt, "/soc/pinctrl@1c20800");
++	if (offset < 0)
++		return offset;
++
++	offset = fdt_add_subnode(fdt, offset, "spi0-pc-pins");
++	if (offset < 0) {
++		printf("%s@%d\n", __func__, __LINE__);
++		return offset;
++	}
++
++	/* Generate phandle */
++	phandle = fdt_create_phandle(fdt, offset);
++	if (!phandle) {
++		printf("%s@%d\n", __func__, __LINE__);
++		return -1;
++	}
++
++	ret |= fdt_setprop_string(fdt, offset, "function" , "spi0");
++	ret |= fdt_setprop_string(fdt, offset, "pins" , "PC0");
++	ret |= fdt_appendprop_string(fdt, offset, "pins", "PC1");
++	ret |= fdt_appendprop_string(fdt, offset, "pins", "PC2");
++	ret |= fdt_appendprop_string(fdt, offset, "pins", "PC23");
++	if (ret < 0) {
++		printf("%s@%d\n", __func__, __LINE__);
++		return ret;
++	}
++
++	offset = _fdt_path_offset(fdt, "/soc/spi@1c05000");
++	if (offset < 0)
++		return offset;
++
++	/* Change status to okay */
++	ret |= fdt_set_node_status(fdt, offset, FDT_STATUS_OKAY, 0);
++	ret |= fdt_setprop_u32(fdt, offset, "spi-max-frequency", 20000000);
++	ret |= fdt_setprop_u32(fdt, offset, "pinctrl-0", phandle);
++	ret |= fdt_setprop_string(fdt, offset, "pinctrl-names", "default");
++	if (ret < 0) {
++		printf("%s@%d\n", __func__, __LINE__);
++		return ret;
++	}
++
++	offset = fdt_add_subnode(fdt, offset, "spi-nor@0");
++	if (offset < 0) {
++		printf("%s@%d\n", __func__, __LINE__);
++		return offset;
++	}
++
++	ret |= fdt_set_node_status(fdt, offset, FDT_STATUS_OKAY, 0);
++	ret |= fdt_setprop_u32(fdt, offset, "spi-max-frequency", 20000000);
++	ret |= fdt_setprop_u32(fdt, offset, "reg", 0);
++	ret |= fdt_setprop_u32(fdt, offset, "#size-cells", 1);
++	ret |= fdt_setprop_u32(fdt, offset, "#address-cells", 1);
++	ret |= fdt_setprop_string(fdt, offset, "compatible", "winbond,w25q128");
++	ret |= fdt_appendprop_string(fdt, offset, "compatible", "jedec,spi-nor");
++	ret |= fdt_appendprop_string(fdt, offset, "compatible", "spi-flash");
++	if (ret < 0) {
++		printf("%s@%d\n", __func__, __LINE__);
++		return ret;
++	}
++
++	offset = _fdt_path_offset(fdt, "/aliases");
++	if (offset < 0)
++		return offset;
++
++	ret = fdt_setprop_string(fdt, offset, "spi0", "/soc/spi@1c05000");
++	if (ret < 0)
++		printf("%s@%d\n", __func__, __LINE__);
++
++	return ret;
++}
++
++int board_fix_fdt(void *fdt)
++{
++	int ret;
++
++	ret = fdt_increase_size(fdt, 4096);
++	if (ret)
++		return ret;
++
++	/**
++	 * Some boards, have both eMMC and SPI flash
++	 */
++	if (olinuxino_board_has_spi()) {
++		ret = board_enable_spi_flash(fdt);
++		if (ret < 0)
++			return ret;
++	}
++
++	return 0;
++}
+diff --git a/board/olimex/a20_olinuxino/gmac.c b/board/olimex/a20_olinuxino/gmac.c
+new file mode 100644
+index 0000000000..f974634b7d
+--- /dev/null
++++ b/board/olimex/a20_olinuxino/gmac.c
+@@ -0,0 +1,63 @@
++/*
++ * Copyright (C) 2019 Olimex Ltd.
++ *   Author: Stefan Mavrodiev <stefan@olimex.com>
++ *
++ * SPDX-License-Identifier: (GPL-2.0+ OR MIT)
++ */
++#include <common.h>
++#include <netdev.h>
++#include <miiphy.h>
++#include <asm/gpio.h>
++#include <asm/io.h>
++#include <asm/arch/clock.h>
++#include <asm/arch/gpio.h>
++
++#include <olimex/boards.h>
++
++void eth_init_board(void)
++{
++	static struct sunxi_ccm_reg *const ccm =
++		(struct sunxi_ccm_reg *)SUNXI_CCM_BASE;
++	enum olinuxino_phy_mode mode;
++	uint8_t tx_delay = 0;
++	int pin;
++
++	mode = olinuxino_get_phy_mode();
++	if (mode == OLINUXINO_PHY_MODE_UNKNOWN)
++		return;
++
++	tx_delay = olinuxino_phy_txdelay();
++
++	/* Set up clock gating */
++	setbits_le32(&ccm->ahb_gate1, 0x1 << AHB_GATE_OFFSET_GMAC);
++
++	if (mode == OLINUXINO_PHY_MODE_RGMII) {
++		setbits_le32(&ccm->gmac_clk_cfg,
++			     CCM_GMAC_CTRL_TX_CLK_DELAY(tx_delay));
++		setbits_le32(&ccm->gmac_clk_cfg,
++			     CCM_GMAC_CTRL_TX_CLK_SRC_INT_RGMII |
++			     CCM_GMAC_CTRL_GPIT_RGMII);
++	} else {
++		setbits_le32(&ccm->gmac_clk_cfg,
++			     CCM_GMAC_CTRL_TX_CLK_SRC_MII |
++			     CCM_GMAC_CTRL_GPIT_MII);
++	}
++
++	/* Configure pins for GMAC */
++	for (pin = SUNXI_GPA(0); pin <= SUNXI_GPA(16); pin++) {
++
++		/* skip unused pins in RGMII mode */
++		if (mode == OLINUXINO_PHY_MODE_RGMII ) {
++			if (pin == SUNXI_GPA(9) || pin == SUNXI_GPA(14))
++				continue;
++		}
++
++		sunxi_gpio_set_cfgpin(pin, SUN7I_GPA_GMAC);
++		sunxi_gpio_set_drv(pin, 3);
++	}
++
++	/* A20-OLinuXino-MICRO needs additional signal for TXERR */
++	if (olinuxino_get_board_family() == OLINUXINO_MICRO) {
++		sunxi_gpio_set_cfgpin(SUNXI_GPA(17),  SUN7I_GPA_GMAC);
++	}
++}
+diff --git a/board/olimex/a64_olinuxino/Kconfig b/board/olimex/a64_olinuxino/Kconfig
+new file mode 100644
+index 0000000000..1b47e3824c
+--- /dev/null
++++ b/board/olimex/a64_olinuxino/Kconfig
+@@ -0,0 +1,10 @@
++if TARGET_A64_OLINUXINO
++config SYS_BOARD
++	default "a64_olinuxino"
++
++config SYS_VENDOR
++	default "olimex"
++
++config SYS_CONFIG_NAME
++	default "a64_olinuxino"
++endif
+diff --git a/board/olimex/a64_olinuxino/MAINTAINERS b/board/olimex/a64_olinuxino/MAINTAINERS
+new file mode 100644
+index 0000000000..cc3d5ab5df
+--- /dev/null
++++ b/board/olimex/a64_olinuxino/MAINTAINERS
+@@ -0,0 +1,6 @@
++A20-OLinuXino
++M:      Stefan Mavrodiev <stefan@olimex.com>
++S:      Maintained
++F:      board/olimex/a64_olinuxino
++F:	include/configs/a64_olinuxino.h
++F:      configs/A64-OLinuXino_defconfig
+diff --git a/board/olimex/a64_olinuxino/Makefile b/board/olimex/a64_olinuxino/Makefile
+new file mode 100644
+index 0000000000..1fa99e7492
+--- /dev/null
++++ b/board/olimex/a64_olinuxino/Makefile
+@@ -0,0 +1,17 @@
++# SPDX-License-Identifier: GPL-2.0+
++#
++# Makefile
++#
++# Copyright (C) 2019 Olimex Ltd.
++#   Author: Stefan Mavrodiev <stefan@olimex.com>
++
++obj-y	+= board.o
++obj-y	+= ../common/sys_eeprom.o
++obj-y	+= ../common/sunxi/board.o
++
++ifndef CONFIG_SPL_BUILD
++obj-y				+= ../common/boards.o
++obj-$(CONFIG_OF_BOARD_FIXUP)	+= fdt.o
++obj-$(CONFIG_VIDEO_LCD_OLINUXINO)	+= ../common/cmd.o
++obj-$(CONFIG_VIDEO_LCD_OLINUXINO)	+= ../common/lcd_olinuxino.o
++endif
+diff --git a/board/olimex/a64_olinuxino/board.c b/board/olimex/a64_olinuxino/board.c
+new file mode 100644
+index 0000000000..655336d5f1
+--- /dev/null
++++ b/board/olimex/a64_olinuxino/board.c
+@@ -0,0 +1,121 @@
++/*
++ * Copyright (C) 2019 Olimex Ltd.
++ *   Author: Stefan Mavrodiev <stefan@olimex.com>
++ *
++ * SPDX-License-Identifier: (GPL-2.0+ OR MIT)
++ */
++
++#include <common.h>
++#include <mmc.h>
++#include <asm/arch/gpio.h>
++#include <asm/arch/spl.h>
++#include <asm/gpio.h>
++
++#include <dm/uclass.h>
++#include <dm/device-internal.h>
++
++#include <olimex/boards.h>
++#include <olimex/lcd_olinuxino.h>
++#include <olimex/sys_eeprom.h>
++
++DECLARE_GLOBAL_DATA_PTR;
++
++#ifdef CONFIG_SPL_BUILD
++void spl_board_init(void)
++{
++	struct mmc *mmc = NULL;
++
++	/* Make sure ram is empty */
++	memset((void *)eeprom, 0xFF, 256);
++
++	/**
++	 * The magic header is needed for validating the configuration
++	 */
++	eeprom->header = OLINUXINO_EEPROM_MAGIC;
++
++	/**
++	 * Try some detection:
++	 *
++	 * 1. If RAM > 1G, then A64-OLinuXino-2Ge8G-IND
++	 * 2. If SPI is present, then A64-OLinuXino-1Gs16M
++	 * 3. If eMMC is present, then A64-OLinuXino-1Ge4GW
++	 * 4. Else -> A64-OLinuXino-1G
++	 */
++	if ((int)(gd->ram_size >> 20) > 1024) {
++		eeprom->id = 8861;
++		eeprom->config.storage = 'e';
++		return;
++	}
++
++	if (sunxi_spi_is_present()) {
++		eeprom->id = 9065;
++		eeprom->config.storage = 's';
++		return;
++	}
++
++	mmc_initialize(NULL);
++	mmc = find_mmc_device(1);
++	if (!mmc_init(mmc)) {
++		if ((mmc->capacity >> 30) > 4)
++			eeprom->id = 9849;
++		else
++			eeprom->id = 8367;
++		eeprom->config.storage = 'e';
++		return;
++	}
++
++	eeprom->id = 8857;
++}
++#endif
++
++#ifdef CONFIG_LAST_STAGE_INIT
++#ifdef CONFIG_VIDEO_LCD_OLINUXINO
++static void olinuxino_enable_panel(void)
++{
++	struct lcd_olinuxino_board *lcd = lcd_olinuxino_get_data();
++	int pin;
++
++	pin = sunxi_name_to_gpio("PD22");
++	if (pin >= 0) {
++		gpio_request(pin, "lcd_backlight_pwm");
++
++		if (lcd->id == 7894)
++			gpio_direction_output(pin, 1);
++		else
++			gpio_direction_output(pin, 0);
++	}
++
++	pin = sunxi_name_to_gpio("PD23");
++	if (pin >= 0) {
++		gpio_request(pin, "lcd_power");
++		gpio_direction_output(pin, 1);
++	}
++}
++#endif /* CONFIG_VIDEO_LCD_OLINUXINO */
++int last_stage_init(void)
++{
++	struct udevice *dev;
++	int ret;
++
++#ifdef CONFIG_USB_MUSB_GADGET
++	ret = uclass_first_device(UCLASS_USB_GADGET_GENERIC, &dev);
++	if (!dev || ret) {
++		printf("No USB device found\n");
++		return 0;
++	}
++
++	ret = device_probe(dev);
++	if (ret) {
++		printf("Failed to probe USB device\n");
++		return 0;
++	}
++#endif
++
++#ifdef CONFIG_VIDEO_LCD_OLINUXINO
++	if (olinuxino_phy_rst_pin() == 0)
++		olinuxino_enable_panel();
++#endif
++
++	return 0;
++}
++#endif
+diff --git a/board/olimex/a64_olinuxino/fdt.c b/board/olimex/a64_olinuxino/fdt.c
+new file mode 100644
+index 0000000000..14959fcca5
+--- /dev/null
++++ b/board/olimex/a64_olinuxino/fdt.c
+@@ -0,0 +1,116 @@
++/*
++ * Copyright (C) 2019 Olimex Ltd.
++ *   Author: Stefan Mavrodiev <stefan@olimex.com>
++ *
++ * SPDX-License-Identifier: (GPL-2.0+ OR MIT)
++ */
++#include <common.h>
++#include <fdt_support.h>
++#include <linux/ctype.h>
++
++#include <olimex/boards.h>
++
++static int _fdt_path_offset(void *fdt, const char *path)
++{
++	int offset;
++
++	offset = fdt_path_offset(fdt, path);
++	if (offset < 0)
++		debug("%s: not found: %s (%d)\n",
++		      path, fdt_strerror(offset), offset);
++
++	return offset;
++}
++
++static int _fdt_set_node_status(void *fdt, int offset, int status)
++{
++	int ret;
++
++	ret = fdt_set_node_status(fdt, offset, status, 0);
++	ret = 4;
++	if (ret)
++		debug("%s: failed to set status: %s (%d)",
++		      fdt_get_name(fdt, offset, NULL),
++		      fdt_strerror(ret), ret);
++
++	ret = 0;
++	return ret;
++
++}
++
++static int board_disable_ethernet(void *fdt)
++{
++	int offset;
++
++	offset = _fdt_path_offset(fdt, "/soc/ethernet@1c30000");
++	if (offset < 0)
++		return offset;
++
++	return _fdt_set_node_status(fdt, offset, FDT_STATUS_DISABLED);
++}
++
++
++static int board_enable_i2c0(void *fdt)
++{
++	int offset;
++	int ret;
++
++	offset = _fdt_path_offset(fdt, "/aliases");
++	if (offset < 0)
++		return offset;
++
++	ret = fdt_setprop_string(fdt, offset, "i2c0", "/soc/i2c@1c2ac00");
++	if (ret < 0) {
++		debug("/aliases: failed to add i2c0 aliases");
++		return ret;
++	}
++
++	offset = _fdt_path_offset(fdt, "/soc/i2c@1c2ac00");
++	if (offset < 0)
++		return offset;
++
++	return _fdt_set_node_status(fdt, offset, FDT_STATUS_OKAY);
++}
++
++int board_fix_fdt(void *fdt)
++{
++	int nodeoffset, ret = 0;
++	char name[40], *p;
++
++	/* Increase FDT blob size by 4KiB */
++	ret = fdt_increase_size(fdt, 4096);
++	if (ret)
++		return ret;
++
++	/* Make sure mmc1 is disabled */
++	nodeoffset = _fdt_path_offset(fdt, "/soc/mmc@1c10000");
++	if (nodeoffset >= 0) {
++		ret = _fdt_set_node_status(fdt, nodeoffset,
++					  FDT_STATUS_DISABLED);
++		if (ret)
++			return ret;
++	}
++
++	/**
++	 * If PHY_RSTn jumper is closed, prepare the LCD interface.
++	 * Otherwise initialize RGMII interface.
++	 */
++	if (olinuxino_phy_rst_pin() == 0) {
++		board_disable_ethernet(fdt);
++		board_enable_i2c0(fdt);
++	}
++
++	/* Set compatible string */
++	snprintf(name, 32, "olimex,%s", olinuxino_get_board_name());
++	p = name;
++	for (; *p; p++)
++		*p = tolower(*p);
++
++	nodeoffset = fdt_path_offset(fdt, "/");
++	ret = fdt_setprop_string(fdt, nodeoffset, "compatible", name);
++	if (ret)
++		debug("/compatible: failed to set property: %s (%d)",
++		      fdt_strerror(ret), ret);
++
++	return ret;
++}
+diff --git a/board/olimex/common/boards.c b/board/olimex/common/boards.c
+new file mode 100644
+index 0000000000..511c3e483e
+--- /dev/null
++++ b/board/olimex/common/boards.c
+@@ -0,0 +1,510 @@
++/*
++ * Copyright (C) 2019 Olimex Ltd.
++ *   Author: Stefan Mavrodiev <stefan@olimex.com>
++ *
++ * SPDX-License-Identifier: (GPL-2.0+ OR MIT)
++ */
++#include <common.h>
++
++#include <olimex/boards.h>
++#include <olimex/sys_eeprom.h>
++
++struct olinuxino_boards olinuxino_boards[] = {
++#if defined(CONFIG_TARGET_A20_OLINUXINO)
++	/* A20-OLinuXino-Lime */
++	{
++		OLINUXINO_BOARD_LIME(7739, "A20-OLinuXino-LIME", "sun7i-a20-olinuxino-lime")
++		OLINUXINO_CONFIG(NONE, -1, MBYTES(512), COM)
++	},
++	{
++		OLINUXINO_BOARD_LIME(7743, "A20-OLinuXino-LIME-n4GB", "sun7i-a20-olinuxino-lime")
++		OLINUXINO_CONFIG(NAND, GBYTES(4), MBYTES(512), COM)
++	},
++	{
++		OLINUXINO_BOARD_LIME(8934, "A20-OLinuXino-LIME-n8G", "sun7i-a20-olinuxino-lime")
++		OLINUXINO_CONFIG(NAND, GBYTES(8), MBYTES(512), COM)
++	},
++	{
++		OLINUXINO_BOARD_LIME(9076, "A20-OLinuXino-LIME-s16MB", "sun7i-a20-olinuxino-lime")
++		OLINUXINO_CONFIG(SPI, MBYTES(16), MBYTES(512), COM)
++	},
++	{
++		OLINUXINO_BOARD_LIME(9516, "A20-OLinuXino-LIME-e16Gs16M", "sun7i-a20-olinuxino-lime2-emmc")
++		OLINUXINO_CONFIG(EMMC, GBYTES(16), MBYTES(512), COM)
++
++	},
++	{
++		OLINUXINO_BOARD_LIME(9696, "A20-OLinuXino-LIME-e4Gs16M", "sun7i-a20-olinuxino-lime2-emc")
++		OLINUXINO_CONFIG(EMMC, GBYTES(4), MBYTES(512), COM)
++
++	},
++
++	/* T2-OLinuXino-Lime */
++	{
++		OLINUXINO_BOARD_LIME(9211, "T2-OLinuXino-LIME-IND", "sun7i-a20-olinuxino-lime")
++		OLINUXINO_CONFIG(NONE, -1, MBYTES(512), IND)
++	},
++	{
++		OLINUXINO_BOARD_LIME(9215, "T2-OLinuXino-LIME-s16M-IND", "sun7i-a20-olinuxino-lime")
++		OLINUXINO_CONFIG(SPI, MBYTES(16), MBYTES(512), IND)
++	},
++	{
++		OLINUXINO_BOARD_LIME(9219, "T2-OLinuXino-LIME-e4G-IND", "sun7i-a20-olinuxino-lime2-emmc")
++		OLINUXINO_CONFIG(EMMC, GBYTES(4), MBYTES(512), IND)
++	},
++	{
++		OLINUXINO_BOARD_LIME(9734, "T2-OLinuXino-LIME-e4Gs16M-IND", "sun7i-a20-olinuxino-lime2-emmc")
++		OLINUXINO_CONFIG(EMMC, GBYTES(4), MBYTES(512), IND)
++
++	},
++
++	/* A20-OLinuXino-Lime2 */
++	{
++		OLINUXINO_BOARD_LIME2(7701, "A20-OLinuXino-LIME2", "sun7i-a20-olinuxino-lime2")
++		OLINUXINO_CONFIG(NONE, -1, GBYTES(1), COM)
++	},
++	{
++		OLINUXINO_BOARD_LIME2(8340, "A20-OLinuXino-LIME2-e4GB", "sun7i-a20-olinuxino-lime2-emmc")
++		OLINUXINO_CONFIG(EMMC, GBYTES(4), GBYTES(1), COM)
++	},
++	{
++		OLINUXINO_BOARD_LIME2(9166, "A20-OLinuXino-LIME2-e16GB", "sun7i-a20-olinuxino-lime2-emmc")
++		OLINUXINO_CONFIG(EMMC, GBYTES(16), GBYTES(1), COM)
++	},
++	{
++		OLINUXINO_BOARD_LIME2(7624, "A20-OLinuXino-LIME2-n4GB", "sun7i-a20-olinuxino-lime2")
++		OLINUXINO_CONFIG(NAND, GBYTES(4), GBYTES(1), COM)
++	},
++	{
++		OLINUXINO_BOARD_LIME2(8910, "A20-OLinuXino-LIME2-n8GB", "sun7i-a20-olinuxino-lime2")
++		OLINUXINO_CONFIG(NAND, GBYTES(8), GBYTES(1), COM)
++	},
++	{
++		OLINUXINO_BOARD_LIME2(8946, "A20-OLinuXino-LIME2-s16MB", "sun7i-a20-olinuxino-lime2")
++		OLINUXINO_CONFIG(SPI, MBYTES(16), GBYTES(1), COM)
++	},
++	{
++		OLINUXINO_BOARD_LIME2(9604, "A20-OLinuXino-LIME2-e16Gs16M", "sun7i-a20-olinuxino-lime2-emmc")
++		OLINUXINO_CONFIG(EMMC, GBYTES(16), GBYTES(1), COM)
++	},
++	{
++		OLINUXINO_BOARD_LIME2(9613, "A20-OLinuXino-LIME2-e4Gs16M", "sun7i-a20-olinuxino-lime2-emmc")
++		OLINUXINO_CONFIG(EMMC, GBYTES(4), GBYTES(1), COM)
++	},
++	{
++		OLINUXINO_BOARD_LIME2(9905, "A20-OLinuXino-LIME2-G2", "sun7i-a20-olinuxino-lime2")
++		OLINUXINO_CONFIG(NONE, -1, GBYTES(1), COM)
++	},
++
++	/* T2-OLinuXino-Lime2 */
++	{
++		OLINUXINO_BOARD_LIME2(9239 , "T2-OLinuXino-LIME2-IND", "sun7i-a20-olinuxino-lime2")
++		OLINUXINO_CONFIG(NONE, -1, GBYTES(1), IND)
++	},
++	{
++		OLINUXINO_BOARD_LIME2(9247 , "T2-OLinuXino-LIME2-s16MB-IND", "sun7i-a20-olinuxino-lime2")
++		OLINUXINO_CONFIG(SPI, MBYTES(16), GBYTES(1), IND)
++	},
++	{
++		OLINUXINO_BOARD_LIME2(9243 , "T2-OLinuXino-LIME2-e8Gs16M-IND", "sun7i-a20-olinuxino-emmc")
++		OLINUXINO_CONFIG(EMMC, GBYTES(8), GBYTES(1), IND)
++	},
++
++	/* A20-OLinuXino-MICRO */
++	{
++		OLINUXINO_BOARD_MICRO(4614, "A20-OLinuXino-MICRO", "sun7i-a20-olinuxino-micro")
++		OLINUXINO_CONFIG(NONE, -1, GBYTES(1), COM)
++	},
++	{
++		OLINUXINO_BOARD_MICRO(4615, "A20-OLinuXino-MICRO-n4GB", "sun7i-a20-olinuxino-micro")
++		OLINUXINO_CONFIG(NAND, GBYTES(4), GBYTES(1), COM)
++	},
++	{
++		OLINUXINO_BOARD_MICRO(8661, "A20-OLinuXino-MICRO-e4GB-IND", "sun7i-a20-olinuxino-micro-emmc")
++		OLINUXINO_CONFIG(EMMC, GBYTES(4), GBYTES(1), IND)
++	},
++	{
++		OLINUXINO_BOARD_MICRO(8828, "A20-OLinuXino-MICRO-IND", "sun7i-a20-olinuxino-micro")
++		OLINUXINO_CONFIG(NONE, -1, GBYTES(1), IND)
++	},
++	{
++		OLINUXINO_BOARD_MICRO(8832, "A20-OLinuXino-MICRO-e4GB", "sun7i-a20-olinuxino-emmc")
++		OLINUXINO_CONFIG(EMMC, GBYTES(4), GBYTES(1), COM)
++	},
++	{
++		OLINUXINO_BOARD_MICRO(8918, "A20-OLinuXino-MICRO-n8G", "sun7i-a20-olinuxino-micro")
++		OLINUXINO_CONFIG(NAND, GBYTES(8), GBYTES(1), COM)
++	},
++	{
++		OLINUXINO_BOARD_MICRO(9042, "A20-OLinuXino-MICRO-e16G", "sun7i-a20-olinuxino-emmc")
++		OLINUXINO_CONFIG(EMMC, GBYTES(16), GBYTES(1), COM)
++	},
++	{
++		OLINUXINO_BOARD_MICRO(9231, "A20-OLinuXino-MICRO-s16MB", "sun7i-a20-olinuxino-micro")
++		OLINUXINO_CONFIG(SPI, MBYTES(16), GBYTES(1), COM)
++	},
++	{
++		OLINUXINO_BOARD_MICRO(9684, "A20-OLinuXino-MICRO-e4Gs16M", "sun7i-a20-olinuxino-emmc")
++		OLINUXINO_CONFIG(EMMC, GBYTES(4), GBYTES(1), COM)
++	},
++	{
++		OLINUXINO_BOARD_MICRO(9689, "A20-OLinuXino-MICRO-e16Gs16M", "sun7i-a20-olinuxino-emmc")
++		OLINUXINO_CONFIG(EMMC, GBYTES(16), GBYTES(1), COM)
++	},
++
++	/* T2-OLinuXino-MICRO */
++	{
++		OLINUXINO_BOARD_MICRO(9223, "T2-OLinuXino-MICRO-IND", "sun7i-a20-olinuxino-micro")
++		OLINUXINO_CONFIG(NONE, -1, GBYTES(1), IND)
++	},
++	{
++		OLINUXINO_BOARD_MICRO(9227, "T2-OLinuXino-MICRO-e4GB-IND", "sun7i-a20-olinuxino-micro-emmc")
++		OLINUXINO_CONFIG(EMMC, GBYTES(4), GBYTES(1), IND)
++	},
++	{
++		OLINUXINO_BOARD_MICRO(9235, "T2-OLinuXino-MICRO-s16MB-IND", "sun7i-a20-olinuxino-micro")
++		OLINUXINO_CONFIG(SPI, MBYTES(16), GBYTES(1), IND)
++	},
++	{
++		OLINUXINO_BOARD_MICRO(9739, "T2-OLinuXino-MICRO-e4Gs16M-IND", "sun7i-a20-olinuxino-micro-emmc")
++		OLINUXINO_CONFIG(EMMC, GBYTES(4), GBYTES(1), IND)
++	},
++	{
++		OLINUXINO_BOARD_MICRO(9789, "T2-OLinuXino-MICRO-e4Gs16M-IND", "sun7i-a20-olinuxino-micro-emmc")
++		OLINUXINO_CONFIG(EMMC, GBYTES(4), GBYTES(1), IND)
++	},
++
++	/* A20-SOM */
++	{
++		OLINUXINO_BOARD_SOM(4673, "A20-SOM-n4GB", "sun7i-a20-olimex-som-evb")
++		OLINUXINO_CONFIG(NAND, GBYTES(4), GBYTES(1), COM)
++	},
++	{
++		OLINUXINO_BOARD_SOM(7664, "A20-SOM", "sun7i-a20-olimex-som-evb")
++		OLINUXINO_CONFIG(NONE, -1, GBYTES(1), COM)
++	},
++	{
++		OLINUXINO_BOARD_SOM(8849, "A20-SOM-IND", "sun7i-a20-olimex-som-evb")
++		OLINUXINO_CONFIG(NONE, -1, GBYTES(1), IND)
++	},
++	{
++		OLINUXINO_BOARD_SOM(8922, "A20-SOM-n8GB", "sun7i-a20-olimex-som-evb")
++		OLINUXINO_CONFIG(NAND, GBYTES(8), GBYTES(1), COM)
++	},
++	{
++		OLINUXINO_BOARD_SOM(9155, "A20-SOM-e16GB", "sun7i-a20-olimex-som-evb-emmc")
++		OLINUXINO_CONFIG(EMMC, GBYTES(16), GBYTES(1), COM)
++	},
++	{
++		OLINUXINO_BOARD_SOM(9148, "A20-SOM-e16GB-IND", "sun7i-a20-olimex-som-evb-emmc")
++		OLINUXINO_CONFIG(EMMC, GBYTES(16), GBYTES(1), IND)
++	},
++	{
++		OLINUXINO_BOARD_SOM(9047, "A20-SOM-e16Gs16M", "sun7i-a20-olimex-som-evb-emmc")
++		OLINUXINO_CONFIG(EMMC, GBYTES(16), GBYTES(1), COM)
++	},
++
++	/* T2-SOM */
++	{
++		OLINUXINO_BOARD_SOM(9259, "T2-SOM-IND", "sun7i-a20-olimex-som-evb")
++		OLINUXINO_CONFIG(NONE, -1, GBYTES(1), IND)
++	},
++	{
++		OLINUXINO_BOARD_SOM(9827, "T2-SOM-e8Gs16M-IND", "sun7i-a20-olimex-som-evb")
++		OLINUXINO_CONFIG(NONE, GBYTES(8), GBYTES(1), IND)
++	},
++
++	/* A20-SOM204 */
++	{
++		OLINUXINO_BOARD_SOM204(8991, "A20-SOM204-1G", "sun7i-a20-olimex-som204-evb")
++		OLINUXINO_CONFIG(NONE, -1, GBYTES(1), COM)
++	},
++	{
++		OLINUXINO_BOARD_SOM204(8958, "A20-SOM204-1Gs16Me16G-MC", "sun7i-a20-olimex-som204-evb-emmc")
++		OLINUXINO_CONFIG(EMMC, GBYTES(16), GBYTES(1), COM)
++	},
++
++	/* T2-SOM204 */
++	{
++		OLINUXINO_BOARD_SOM204(10157, "T2-SOM204-1Gs16Me4G-C-I", "sun7i-a20-olimex-som204-evb-emmc")
++		OLINUXINO_CONFIG(EMMC, GBYTES(4), GBYTES(1), IND)
++	},
++	{
++		OLINUXINO_BOARD_SOM204(10234, "T2-SOM204-1Gs16Me8G-MC-I", "sun7i-a20-olimex-som204-evb-emmc")
++		OLINUXINO_CONFIG(EMMC, GBYTES(8), GBYTES(1), IND)
++	},
++#endif
++#if defined(CONFIG_TARGET_A64_OLINUXINO)
++	{
++		OLINUXINO_BOARD(8861, "A64-OLinuXino-2Ge8G-IND", "sun50i-a64-olinuxino-emmc")
++		OLINUXINO_CONFIG(EMMC, GBYTES(8), GBYTES(2), IND)
++	},
++	{
++		OLINUXINO_BOARD(9065, "A64-OLinuXino-1Gs16M", "sun50i-a64-olinuxino")
++		OLINUXINO_CONFIG(SPI, MBYTES(16), GBYTES(1), COM)
++	},
++	{
++		OLINUXINO_BOARD(8367, "A64-OLinuXino-1Ge4GW", "sun50i-a64-olinuxino-emmc")
++		OLINUXINO_CONFIG(EMMC, GBYTES(4), GBYTES(2), COM)
++	},
++	{
++		OLINUXINO_BOARD(8857, "A64-OLinuXino-1G", "sun50i-a64-olinuxino")
++		OLINUXINO_CONFIG(NONE, -1, GBYTES(1), COM)
++	},
++	{
++		OLINUXINO_BOARD(9849, "A64-OLinuXino-1Ge16GW", "sun50i-a64-olinuxino-emmc")
++		OLINUXINO_CONFIG(EMMC, GBYTES(16), GBYTES(2), COM)
++	},
++#endif
++	{
++		.id = 0,
++	}
++};
++
++const char *olinuxino_get_board_name()
++{
++	struct olinuxino_boards *board = olinuxino_boards;
++
++	if (!olinuxino_eeprom_is_valid())
++		return "";
++
++	while (board->id) {
++		if (eeprom->id == board->id)
++			return board->name;
++		board++;
++	}
++	return "";
++}
++
++void olinuxino_get_board_revision(char *data)
++{
++	data[0] = 0;
++
++	if (eeprom->revision.major < 'A' || eeprom->revision.major > 'Z')
++		return;
++
++	data[0] = eeprom->revision.major;
++	data[1] = 0;
++
++	if (eeprom->revision.minor < '1' || eeprom->revision.minor > '9')
++		return;
++
++	data[1] = eeprom->revision.minor;
++	data[2] = 0;
++}
++
++void olinuxino_get_board_mac(char *data)
++{
++	char *mac = eeprom->mac;
++
++	sprintf(data, "%c%c:%c%c:%c%c:%c%c:%c%c:%c%c",
++		(mac[0] == 0xFF) ? 'F' : mac[0],
++		(mac[1] == 0xFF) ? 'F' : mac[1],
++		(mac[2] == 0xFF) ? 'F' : mac[2],
++		(mac[3] == 0xFF) ? 'F' : mac[3],
++		(mac[4] == 0xFF) ? 'F' : mac[4],
++		(mac[5] == 0xFF) ? 'F' : mac[5],
++		(mac[6] == 0xFF) ? 'F' : mac[6],
++		(mac[7] == 0xFF) ? 'F' : mac[7],
++		(mac[8] == 0xFF) ? 'F' : mac[8],
++		(mac[9] == 0xFF) ? 'F' : mac[9],
++		(mac[10] == 0xFF) ? 'F' : mac[10],
++		(mac[11] == 0xFF) ? 'F' : mac[11]);
++}
++
++const char *olinuxino_get_board_fdt()
++{
++	struct olinuxino_boards *board = olinuxino_boards;
++
++	if (!olinuxino_eeprom_is_valid())
++		return "";
++
++	while (board->id) {
++		if (eeprom->id == board->id)
++			return board->fdt;
++		board++;
++	}
++	return "";
++
++}
++
++bool olinuxino_board_has_spi(void)
++{
++	if (!olinuxino_eeprom_is_valid())
++		return false;
++
++	if (eeprom->config.storage == 's')
++		return true;
++
++	/* Some boards have both eMMC and SPI */
++	switch (eeprom->id) {
++	case 8958:              // A20-SOM204-1Gs16Me16G-MC
++	case 10157:             // T2-SOM204-1Gs16Me4G-C-I
++
++	case 9604:              // A20-OLinuXino-LIME2-e16Gs16M
++	case 9613:              // A20-OLinuXino-LIME2-e4Gs16M"
++	case 9243:              // T2-OLinuXino-LIME2-e8Gs16M-IND
++
++	case 9047:              // A20-SOM-e16Gs16M
++
++	case 9684:              // A20-OLinuXino-MICRO-e4Gs16M
++	case 9689:              // A20-OLinuXino-MICRO-e16Gs16M
++	case 9739:              // T2-OLinuXino-MICRO-e4Gs16M-IND
++	case 9789:              // T2-OLinuXino-MICRO-e4Gs16M-IND
++
++	case 9516:              // A20-OLinuXino-LIME-e16Gs16M
++	case 9696:              // A20-OLinuXino-LIME-e4Gs16M
++	case 9734:              // T2-OLinuXino-LIME-e4Gs16M-IND
++
++	case 9827:              // T2-SOM-e8Gs16M-IND
++		return true;
++
++	default:
++		return false;
++	}
++}
++
++#if defined(CONFIG_TARGET_A20_OLINUXINO)
++enum olinuxino_family olinuxino_get_board_family()
++{
++	struct olinuxino_boards *board = olinuxino_boards;
++
++	if (!olinuxino_eeprom_is_valid())
++		return OLINUXINO_UNKNOWN;
++
++	while (board->id) {
++		if (eeprom->id == board->id)
++			return board->family;
++		board++;
++	}
++
++	return OLINUXINO_UNKNOWN;
++}
++
++enum olinuxino_phy_mode olinuxino_get_phy_mode(void)
++{
++	switch (olinuxino_get_board_family()) {
++		case OLINUXINO_UNKNOWN:
++			return OLINUXINO_PHY_MODE_UNKNOWN;
++
++		case OLINUXINO_MICRO:
++		case OLINUXINO_LIME:
++			return OLINUXINO_PHY_MODE_MII;
++
++		default:
++			return OLINUXINO_PHY_MODE_RGMII;
++	}
++}
++
++uint8_t olinuxino_phy_txdelay(void)
++{
++	switch (olinuxino_get_board_family()) {
++	case OLINUXINO_LIME2:
++		if (eeprom->revision.major > 'G')
++			/* KSZ9031 */
++			return 4;
++		else if (eeprom->revision.major > 'E')
++			/* RTL8211E */
++			return 2;
++		else
++			return 0;
++	case OLINUXINO_SOM:
++	case OLINUXINO_SOM204:
++		return 4;
++	default:
++		return 0;
++	}
++}
++#endif
++
++#ifdef CONFIG_TARGET_A64_OLINUXINO
++#include <asm/io.h>
++#include <asm/arch/gpio.h>
++uint8_t olinuxino_phy_rst_pin(void)
++{
++	u32 reg;
++
++	/* Make sure PD24 is input */
++	sunxi_gpio_set_cfgpin(SUNXI_GPD(24), SUNXI_GPIO_INPUT);
++	reg = readl(0x01c2087c);
++
++	return ((reg >> 24) & 0x01);
++}
++#endif
++
++#ifdef CONFIG_VIDEO_LCD_OLINUXINO
++const char * olinuxino_get_lcd_pwr_pin()
++{
++#if defined(CONFIG_TARGET_A20_OLINUXINO)
++	switch (olinuxino_get_board_family()) {
++	case OLINUXINO_SOM:
++		return "PH7";
++	case OLINUXINO_SOM204:
++		return "PC24";
++	default:
++		return "PH8";
++	}
++#elif defined(CONFIG_TARGET_A33_OLINUXINO)
++	return "PB2";
++#elif defined(CONFIG_TARGET_A64_OLINUXINO)
++	return "PD23";
++#else
++	return "";
++#endif
++}
++
++const char * olinuxino_get_lcd_pwm_pin()
++{
++#if defined(CONFIG_TARGET_A20_OLINUXINO)
++	return "PB2";
++#elif defined(CONFIG_TARGET_A33_OLINUXINO)
++	return "PH0";
++#elif defined(CONFIG_TARGET_A64_OLINUXINO)
++	return "PD22";
++#else
++	return "";
++#endif
++}
++
++const char *olinuxino_get_lcd_irq_pin()
++{
++#if defined(CONFIG_TARGET_A20_OLINUXINO)
++	switch (olinuxino_get_board_family()) {
++	case OLINUXINO_LIME2:
++		return "PH10";
++	case OLINUXINO_SOM:
++		return NULL;
++	case OLINUXINO_SOM204:
++		return "PH2";
++	default:
++		return "PH12";
++	}
++#elif defined(CONFIG_TARGET_A33_OLINUXINO)
++	return "PB5";
++#elif defined(CONFIG_TARGET_A64_OLINUXINO)
++	return "PH7";
++#else
++	return "";
++#endif
++}
++
++const char *olinuxino_get_lcd_rst_pin()
++{
++#if defined(CONFIG_TARGET_A20_OLINUXINO)
++switch (olinuxino_get_board_family()) {
++	case OLINUXINO_LIME2:
++		return "PH11";
++	case OLINUXINO_SOM:
++		return NULL;
++	case OLINUXINO_SOM204:
++		return "PI1";
++	default:
++		return "PB13";
++	}
++#elif defined(CONFIG_TARGET_A33_OLINUXINO)
++	return "PB6";
++#elif defined(CONFIG_TARGET_A64_OLINUXINO)
++	return "PH8";
++#endif
++}
++#endif /* CONFIG_VIDEO_LCD_OLINUXINO */
+diff --git a/board/olimex/common/cmd.c b/board/olimex/common/cmd.c
+new file mode 100644
+index 0000000000..57e6a52a76
+--- /dev/null
++++ b/board/olimex/common/cmd.c
+@@ -0,0 +1,318 @@
++/* SPDX-License-Identifier: GPL-2.0+ */
++/*
++ * Copyright (c) 2019 Olimex Ltd.
++ *   Author: Stefan Mavrodiev <stefan@olimex.com>
++ */
++
++#include <common.h>
++#include <spl.h>
++#include <asm/arch/spl.h>
++#include <linux/ctype.h>
++
++
++#include <olimex/boards.h>
++#include <olimex/lcd_olinuxino.h>
++#include <olimex/sys_eeprom.h>
++
++#if defined(CONFIG_TARGET_A20_OLINUXINO)
++static int do_config_info(cmd_tbl_t *cmdtp, int flag,
++			  int argc, char *const argv[])
++{
++	show_board_info();
++
++	return CMD_RET_SUCCESS;
++}
++
++static int do_config_list(cmd_tbl_t *cmdtp, int flag,
++			  int argc, char *const argv[])
++{
++	struct olinuxino_boards *board;
++
++	printf("\nSupported boards:\n");
++	printf("----------------------------------------\n");
++
++	for (board = olinuxino_boards; board->id != 0; board++)
++		printf("%-30s - %-10d\n", board->name, board->id);
++	return CMD_RET_SUCCESS;
++}
++
++static int do_config_write(cmd_tbl_t *cmdtp, int flag,
++			   int argc, char *const argv[])
++{
++	struct olinuxino_boards *board = olinuxino_boards;
++	struct olinuxino_eeprom info;
++	int __maybe_unused bootdev;
++	uint32_t sid[4];
++	char mac[13];
++	uint32_t id;
++	uint8_t i = 0;
++	char *p;
++
++	if (argc < 3 || argc > 5)
++		return CMD_RET_USAGE;
++
++	memset(&info, 0xFF, 256);
++
++	id = simple_strtoul(argv[1], NULL, 10);
++	do {
++		if (board->id == id)
++			break;
++
++		board++;
++		if (board->id == 0) {
++			printf("%d is not valid ID!\n"
++			       "Run olimex config list to get supported IDs.\n", id);
++			return CMD_RET_FAILURE;
++		}
++	} while (board->id != 0);
++
++	info.id = id;
++	memcpy(&info.config, board->config, 4);
++
++	info.revision.major = argv[2][0];
++	info.revision.minor = '\0';
++
++	/* Make uppercase */
++	info.revision.major = toupper(info.revision.major);
++
++	if (info.revision.major < 'A' || info.revision.major > 'Z') {
++		printf("%c in not valid revision!\n"
++		       "Revision should be one character: A, C, J, etc...\n", info.revision.major);
++		return CMD_RET_FAILURE;
++	}
++
++	if (argc > 3)
++		info.serial = simple_strtoul(argv[3], NULL, 16);
++
++
++	if (argc > 4) {
++		i = 0;
++		p = argv[4];
++		while (*p) {
++			if ((*p < '0' || *p > '9') && (*p < 'a' || *p > 'f') && (*p < 'A' || *p > 'F') && (*p != ':')) {
++				printf("Invalid character: %d(%c)!\n", *p, *p);
++				return CMD_RET_FAILURE;
++			}
++
++			if (*p != ':')
++				info.mac[i++] = toupper(*p);
++			p++;
++		};
++
++		if (i != 12) {
++			printf("Invalid MAC address lenght: %d!\n", i);
++			return CMD_RET_FAILURE;
++		}
++	} else {
++		sunxi_get_sid(sid);
++		if (sid[0] != 0) {
++
++			/* Ensure the NIC specific bytes of the mac are not all 0 */
++			if ((sid[3] & 0xffffff) == 0)
++				sid[3] |= 0x800000;
++
++			/* Non OUI / registered MAC address */
++			snprintf(&mac[0], 3, "%02X", 0x02);
++			snprintf(&mac[2], 3, "%02X", (sid[0] >>  0) & 0xff);
++			snprintf(&mac[4], 3, "%02X", (sid[3] >> 24) & 0xff);
++			snprintf(&mac[6], 3, "%02X", (sid[3] >> 16) & 0xff);
++			snprintf(&mac[8], 3, "%02X", (sid[3] >>  8) & 0xff);
++			snprintf(&mac[10], 3, "%02X", (sid[3] >>  0) & 0xff);
++
++			memcpy(&info.mac, &mac, 12);
++
++		}
++	}
++
++	printf("Erasing EEPROM configuration...\n");
++	if (olinuxino_i2c_eeprom_erase()) {
++#ifdef CONFIG_MMC
++		bootdev = sunxi_get_boot_device();
++
++		if (bootdev == BOOT_DEVICE_MMC1 ||
++		    bootdev == BOOT_DEVICE_MMC2) {
++			printf("Erasing MMC configuration...\n");
++				if (olinuxino_mmc_eeprom_erase())
++					return CMD_RET_FAILURE;
++		}
++#else
++		return CMD_RET_FAILURE;
++#endif
++	}
++
++	memcpy(eeprom, &info, 256);
++
++	printf("Writting EEPROM configuration...\n");
++	if (!olinuxino_i2c_eeprom_write())
++		olinuxino_i2c_eeprom_read();
++
++#ifdef CONFIG_MMC
++	bootdev = sunxi_get_boot_device();
++	if (bootdev == BOOT_DEVICE_MMC1 ||
++	    bootdev == BOOT_DEVICE_MMC2) {
++		printf("Writting MMC configuration...\n");
++		if (!olinuxino_mmc_eeprom_write())
++			olinuxino_mmc_eeprom_read();
++	}
++#endif
++
++	return CMD_RET_SUCCESS;
++}
++
++static int do_config_erase(cmd_tbl_t *cmdtp, int flag,
++			   int argc, char *const argv[])
++{
++	printf("Erasing configuration EEPROM...\n");
++	return olinuxino_i2c_eeprom_erase();
++}
++
++static cmd_tbl_t cmd_config[] = {
++	U_BOOT_CMD_MKENT(info,	1, 0, do_config_info,  "", ""),
++	U_BOOT_CMD_MKENT(list,	1, 0, do_config_list,  "", ""),
++	U_BOOT_CMD_MKENT(write, 5, 0, do_config_write, "", ""),
++	U_BOOT_CMD_MKENT(erase, 1, 0, do_config_erase, "", ""),
++};
++#endif /* CONFIG_TARGET_A20_OLINUXINO */
++
++#ifdef CONFIG_VIDEO_LCD_OLINUXINO
++static int do_monitor_list(cmd_tbl_t *cmdtp, int flag,
++			   int argc, char *const argv[])
++{
++	struct lcd_olinuxino_board *lcd;
++
++	printf("\nSupported video outputs:\n");
++	printf("----------------------------------------\n");
++	printf("%-30s - Automatic LCD detection\n", "LCD-OLinuXino");
++	for (lcd = lcd_olinuxino_boards; lcd->id != 0; lcd++)
++		printf("%-30s - Resolution %dx%d\n", lcd->info.name,
++						     lcd->mode.hactive,
++						     lcd->mode.vactive);
++	return CMD_RET_SUCCESS;
++}
++
++static int do_monitor_set(cmd_tbl_t *cmdtp, int flag,
++			  int argc, char *const argv[])
++{
++	struct lcd_olinuxino_board *lcd = lcd_olinuxino_boards;
++	char temp[32];
++	char *p;
++	int i;
++
++	if (argc < 2)
++		return CMD_RET_USAGE;
++
++	/* Convert to lowercase */
++	p = argv[1];
++	for (i = 0; i < strlen(p); i++) {
++		p[i] = tolower(p[i]);
++	}
++
++	if (!strcmp(p, "lcd-olinuxino") && strlen(p) == 13) {
++		printf("Enabling Automatic LCD-OLinuXino detection...\n");
++		env_set_ulong("lcd_olinuxino", 0);
++		return CMD_RET_SUCCESS;
++	} else {
++		while(lcd->id) {
++			/* Convert name to lowercase */
++			strcpy(temp, lcd->info.name);
++			for (i = 0; i < strlen(temp); i++)
++				temp[i] = tolower(temp[i]);
++
++			/* Compare name */
++			if (!strcmp(p, temp) && strlen(p) == strlen(temp)) {
++				printf("Enabling %s...\n", lcd->info.name);
++				env_set_ulong("lcd_olinuxino", lcd->id);
++				return CMD_RET_SUCCESS;
++			}
++			lcd++;
++		}
++	}
++
++	printf("Invalid LCD! Run \"olinuxino monitor list\" for supported devices.\n");
++
++	return CMD_RET_SUCCESS;
++}
++
++static cmd_tbl_t cmd_monitor[] = {
++	U_BOOT_CMD_MKENT(list, 1, 0, do_monitor_list, "", ""),
++	U_BOOT_CMD_MKENT(set, 2, 0, do_monitor_set, "", ""),
++};
++#endif /* CONFIG_VIDEO_LCD_OLINUXINO */
++
++static int do_olinuxino_opts(cmd_tbl_t *cmdtp, int flag, int argc, char *const argv[])
++{
++	cmd_tbl_t *cp;
++
++#ifdef CONFIG_VIDEO_LCD_OLINUXINO
++	if (!strcmp(argv[0], "monitor"))
++		cp = find_cmd_tbl(argv[1], cmd_monitor, ARRAY_SIZE(cmd_monitor));
++	else
++#endif
++#if defined(CONFIG_TARGET_A20_OLINUXINO)
++	if (!strcmp(argv[0], "config"))
++		cp = find_cmd_tbl(argv[1], cmd_config, ARRAY_SIZE(cmd_config));
++	else
++#endif
++	return CMD_RET_USAGE;
++
++	argc--;
++	argv++;
++
++	if (cp == NULL || argc > cp->maxargs)
++		return CMD_RET_USAGE;
++	if (flag == CMD_FLAG_REPEAT && !cp->cmd_rep)
++		return CMD_RET_SUCCESS;
++
++	return cp->cmd(cmdtp, flag, argc, argv);
++}
++
++static cmd_tbl_t cmd_olinuxino[] = {
++#if defined(CONFIG_TARGET_A20_OLINUXINO)
++	U_BOOT_CMD_MKENT(config, CONFIG_SYS_MAXARGS, 0, do_olinuxino_opts, "", ""),
++#endif
++#ifdef CONFIG_VIDEO_LCD_OLINUXINO
++	U_BOOT_CMD_MKENT(monitor, CONFIG_SYS_MAXARGS, 0, do_olinuxino_opts, "", ""),
++#endif
++};
++
++static int do_olinuxino_ops(cmd_tbl_t *cmdtp, int flag, int argc, char *const argv[])
++{
++	cmd_tbl_t *cp;
++
++	cp = find_cmd_tbl(argv[1], cmd_olinuxino, ARRAY_SIZE(cmd_olinuxino));
++
++	argc--;
++	argv++;
++
++	if (cp == NULL || argc > cp->maxargs)
++		return CMD_RET_USAGE;
++	if (flag == CMD_FLAG_REPEAT && !cp->cmd_rep)
++		return CMD_RET_SUCCESS;
++
++	return cp->cmd(cmdtp, flag, argc, argv);
++}
++
++U_BOOT_CMD(
++	olinuxino, 7, 0, do_olinuxino_ops,
++	"OLinuXino board configurator",
++	"\n"
++#if defined(CONFIG_TARGET_A20_OLINUXINO)
++	"olinuxino config info		- Print current configuration: ID, serial, ram, storage, grade...\n"
++	"olinuxino config list		- Print supported boards and their IDs\n"
++	"olinuxino config erase		- Erase currently stored configuration\n"
++	"olinuxino config write [id] [revision] [serial] [mac]\n"
++	"  arguments:\n"
++	"    [id]			- Specific board ID\n"
++	"    [revision]			- Board revision: C, D1, etc...\n"
++	"    [serial]			- New serial number for the board\n"
++	"    [mac]			- New MAC address for the board\n"
++	"				  Format can be:\n"
++	"					aa:bb:cc:dd:ee:ff\n"
++	"					FF:FF:FF:FF:FF:FF\n"
++	"					aabbccddeeff\n"
++#endif
++#ifdef CONFIG_VIDEO_LCD_OLINUXINO
++	"olinuxino monitor list		- Print supported video outputs\n"
++	"olinuxino monitor set		- Set specific LCD\n"
++#endif
++);
+diff --git a/board/olimex/common/lcd_olinuxino.c b/board/olimex/common/lcd_olinuxino.c
+new file mode 100644
+index 0000000000..ae13897475
+--- /dev/null
++++ b/board/olimex/common/lcd_olinuxino.c
+@@ -0,0 +1,446 @@
++/*
++ * Copyright (C) 2018 Olimex Ltd.
++ *   Author: Stefan Mavrodiev <stefan@olimex.com>
++ *
++ * SPDX-License-Identifier: (GPL-2.0+ OR MIT)
++ */
++#include <common.h>
++#include <dm.h>
++#include <i2c.h>
++#include <u-boot/crc.h>
++
++#include <olimex/lcd_olinuxino.h>
++
++struct lcd_olinuxino_board lcd_olinuxino_boards[] = {
++	{
++		.id = 7859,
++		.compatible = "olimex,lcd-olinuxino-4.3",
++		{
++			.name = "LCD-OLinuXino-4.3TS",
++			.bus_format = MEDIA_BUS_FMT_RGB888_1X24,
++		},
++		{
++			.pixelclock = 12000,
++			.hactive = 480,
++			.hfp = 8,
++			.hbp = 23,
++			.hpw = 20,
++			.vactive = 272,
++			.vfp = 4,
++			.vbp = 13,
++			.vpw = 10,
++			.refresh = 60,
++			.flags = 0
++		}
++
++	},
++	{
++		.id = 8630,
++		.compatible = "olimex,lcd-olinuxino-5",
++		{
++			.name = "LCD-OLinuXino-5",
++			.bus_format = MEDIA_BUS_FMT_RGB888_1X24,
++		},
++		{
++			.pixelclock = 33000,
++			.hactive = 800,
++			.hfp = 210,
++			.hbp = 26,
++			.hpw = 20,
++			.vactive = 480,
++			.vfp = 22,
++			.vbp = 13,
++			.vpw = 10,
++			.refresh = 60,
++			.flags = 0
++		}
++
++	},
++	{
++		.id = 7864,
++		.compatible = "olimex,lcd-olinuxino-7",
++		{
++			.name = "LCD-OLinuXino-7",
++			.bus_format = MEDIA_BUS_FMT_RGB888_1X24,
++		},
++		{
++			.pixelclock = 33000,
++			.hactive = 800,
++			.hfp = 210,
++			.hbp = 26,
++			.hpw = 20,
++			.vactive = 480,
++			.vfp = 22,
++			.vbp = 13,
++			.vpw = 10,
++			.refresh = 60,
++			.flags = 0
++		}
++
++	},
++	{
++		.id = 9278,
++		.compatible = "olimex,lcd-olinuxino-10",
++		{
++			.name = "LCD-OLinuXino-7CTS",
++			.bus_format = MEDIA_BUS_FMT_RGB888_1X24,
++		},
++		{
++			.pixelclock = 45000,
++			.hactive = 1024,
++			.hfp = 10,
++			.hbp = 160,
++			.hpw = 6,
++			.vactive = 600,
++			.vfp = 1,
++			.vbp = 22,
++			.vpw = 1,
++			.refresh = 60,
++			.flags = 0
++		}
++
++	},
++	{
++		.id = 7862,
++		.compatible = "olimex,lcd-olinuxino-10",
++		{
++			.name = "LCD-OLinuXino-10",
++			.bus_format = MEDIA_BUS_FMT_RGB888_1X24,
++		},
++		{
++			.pixelclock = 45000,
++			.hactive = 1024,
++			.hfp = 10,
++			.hbp = 160,
++			.hpw = 6,
++			.vactive = 600,
++			.vfp = 1,
++			.vbp = 22,
++			.vpw = 1,
++			.refresh = 60,
++			.flags = 0
++		}
++
++	},
++	{
++		.id = 9284,
++		.compatible = "olimex,lcd-olinuxino-10",
++		{
++			.name = "LCD-OLinuXino-10CTS",
++			.bus_format = MEDIA_BUS_FMT_RGB888_1X24,
++		},
++		{
++			.pixelclock = 45000,
++			.hactive = 1024,
++			.hfp = 10,
++			.hbp = 160,
++			.hpw = 6,
++			.vactive = 600,
++			.vfp = 1,
++			.vbp = 22,
++			.vpw = 1,
++			.refresh = 60,
++			.flags = 0
++		}
++
++	},
++#ifdef CONFIG_TARGET_A20_OLINUXINO
++	{
++		.id = 7891,
++		.compatible = "",
++		{
++			.name = "LCD-OLinuXino-15.6",
++		},
++		{
++			.pixelclock = 70000,
++			.hactive = 1366,
++			.hfp = 20,
++			.hbp = 54,
++			.hpw = 0,
++			.vactive = 768,
++			.vfp = 17,
++			.vbp = 23,
++			.vpw = 0,
++			.refresh = 60,
++			.flags = 0
++		}
++
++	},
++	{
++		.id = 7894,
++		.compatible = "",
++		{
++			.name = "LCD-OLinuXino-15.6FHD",
++		},
++		{
++			.pixelclock = 152000,
++			.hactive = 1920,
++			.hfp = 150,
++			.hbp = 246,
++			.hpw = 60,
++			.vactive = 1080,
++			.vfp = 15,
++			.vbp = 53,
++			.vpw = 9,
++			.refresh = 60,
++			.flags = 0
++		}
++
++	},
++#endif
++	{
++		.id = 0,
++	},
++};
++
++struct lcd_olinuxino_eeprom lcd_olinuxino_eeprom;
++
++
++static int lcd_olinuxino_eeprom_read(void)
++{
++	uint32_t crc;
++	int ret;
++
++#ifdef CONFIG_DM_I2C
++	struct udevice *bus, *chip;
++
++	ret = uclass_get_device_by_seq(UCLASS_I2C, LCD_OLINUXINO_EEPROM_BUS, &bus);
++	if (ret)
++		return ret;
++
++	ret = dm_i2c_probe(bus, 0x50, 0x0, &chip);
++	if (ret)
++		return ret;
++
++	ret = dm_i2c_read(chip, 0x00, (uint8_t *)&lcd_olinuxino_eeprom, 256);
++	if (ret)
++		return ret;
++#else
++	ret = i2c_set_bus_num(LCD_OLINUXINO_EEPROM_BUS);
++	if (ret)
++		return ret;
++
++	ret = i2c_probe(LCD_OLINUXINO_EEPROM_ADDRESS);
++	if (ret)
++		return ret;
++
++	ret = i2c_read(LCD_OLINUXINO_EEPROM_ADDRESS, 0, 1, (uint8_t *)&lcd_olinuxino_eeprom, 256);
++	if (ret)
++		return ret;
++#endif
++
++	if (lcd_olinuxino_eeprom.header != LCD_OLINUXINO_HEADER_MAGIC)
++		goto error;
++
++	crc = crc32(0L, (uint8_t *)&lcd_olinuxino_eeprom, 252);
++	if (lcd_olinuxino_eeprom.checksum != crc)
++		goto error;
++
++	return 0;
++
++error:
++	memset(&lcd_olinuxino_eeprom, 0xFF, 256);
++	return -ENODEV;
++}
++
++#ifdef CONFIG_VIDEO_SUNXI
++char videomode[128];
++
++char * lcd_olinuxino_video_mode()
++{
++	struct lcd_olinuxino_mode *mode = NULL;
++	struct lcd_olinuxino_info *info = NULL;
++	uint32_t id = env_get_ulong("lcd_olinuxino", 10, 0);
++	uint32_t i;
++	int ret;
++
++
++	if (id) {
++		for (i = 0; i < ARRAY_SIZE(lcd_olinuxino_boards); i++) {
++			if (lcd_olinuxino_boards[i].id == id) {
++				info = &lcd_olinuxino_boards[i].info;
++				mode = &lcd_olinuxino_boards[i].mode;
++				break;
++			}
++		}
++	}
++
++	if (mode == NULL || info == NULL) {
++		ret = lcd_olinuxino_eeprom_read();
++		if (ret)
++			return "";
++
++		printf("Detected %s, Rev.%s, Serial:%08x\n",
++		       lcd_olinuxino_eeprom.info.name,
++		       lcd_olinuxino_eeprom.revision,
++		       lcd_olinuxino_eeprom.serial);
++
++		mode = (struct lcd_olinuxino_mode *)&lcd_olinuxino_eeprom.reserved;
++		info = &lcd_olinuxino_eeprom.info;
++	}
++
++	sprintf(videomode, "x:%d,y:%d,depth:%d,pclk_khz:%d,le:%d,ri:%d,up:%d,lo:%d,hs:%d,vs:%d,sync:3,vmode:0",
++		mode->hactive,
++		mode->vactive,
++		(info->bus_format == MEDIA_BUS_FMT_RGB888_1X24) ? 24 : 18,
++		mode->pixelclock,
++		mode->hbp,
++		mode->hfp,
++		mode->vbp,
++		mode->vfp,
++		mode->hpw,
++		mode->vpw);
++
++
++	return videomode;
++}
++#endif /* CONFIG_VIDEO_SUNXI */
++
++#ifdef CONFIG_VIDEO_DE2
++int lcd_olinuxino_display_timing(struct display_timing *timing)
++{
++	struct lcd_olinuxino_mode *mode = NULL;
++	struct lcd_olinuxino_info *info = NULL;
++	uint32_t id = env_get_ulong("lcd_olinuxino", 10, 0);
++	uint32_t i;
++	int ret;
++
++	if (id) {
++		for (i = 0; i < ARRAY_SIZE(lcd_olinuxino_boards); i++) {
++			if (lcd_olinuxino_boards[i].id == id) {
++				info = &lcd_olinuxino_boards[i].info;
++				mode = &lcd_olinuxino_boards[i].mode;
++				break;
++			}
++		}
++	}
++
++	if (mode == NULL || info == NULL) {
++		ret = lcd_olinuxino_eeprom_read();
++		if (ret)
++			return -ENODEV;
++
++		printf("Detected %s, Rev.%s, Serial:%08x\n",
++		       lcd_olinuxino_eeprom.info.name,
++		       lcd_olinuxino_eeprom.revision,
++		       lcd_olinuxino_eeprom.serial);
++
++		mode = (struct lcd_olinuxino_mode *)&lcd_olinuxino_eeprom.reserved;
++		info = &lcd_olinuxino_eeprom.info;
++	}
++
++	memset(timing, 0, sizeof(*timing));
++
++	timing->pixelclock.typ = mode->pixelclock * 1000;
++	timing->pixelclock.min = timing->pixelclock.typ;
++	timing->pixelclock.max = timing->pixelclock.typ;
++
++	timing->hactive.typ = mode->hactive;
++	timing->hactive.min = timing->hactive.typ;
++	timing->hactive.max = timing->hactive.typ;
++
++	timing->hfront_porch.typ = mode->hfp;
++	timing->hfront_porch.min = timing->hfront_porch.typ;
++	timing->hfront_porch.max = timing->hfront_porch.typ;
++
++	timing->hback_porch.typ = mode->hbp;
++	timing->hback_porch.min = timing->hback_porch.typ;
++	timing->hback_porch.max = timing->hback_porch.typ;
++
++	timing->hsync_len.typ = mode->hpw;
++	timing->hsync_len.min = timing->hsync_len.typ;
++	timing->hsync_len.max = timing->hsync_len.typ;
++
++	timing->vactive.typ = mode->vactive;
++	timing->vactive.min = timing->vactive.typ;
++	timing->vactive.max = timing->vactive.typ;
++
++	timing->vfront_porch.typ = mode->vfp;
++	timing->vfront_porch.min = timing->vfront_porch.typ;
++	timing->vfront_porch.max = timing->vfront_porch.typ;
++
++	timing->vback_porch.typ = mode->vbp;
++	timing->vback_porch.min = timing->vback_porch.typ;
++	timing->vback_porch.max = timing->vback_porch.typ;
++
++	timing->vsync_len.typ = mode->vpw;
++	timing->vsync_len.min = timing->vsync_len.typ;
++	timing->vsync_len.max = timing->vsync_len.typ;
++
++	timing->flags = mode->flags;
++	timing->hdmi_monitor = false;
++
++	return 0;
++}
++#endif
++
++
++
++/**
++ * lcd_olinuxino_is_present() - Check if display panel is present
++ *
++ * If lcd_olinuxino env variable is passed, then always assume present,
++ * otherwise check the eeprom for magic header.
++ *
++ * @return true of present, false - not present
++ */
++bool lcd_olinuxino_is_present(void)
++{
++	uint32_t id = env_get_ulong("lcd_olinuxino", 10, 0);
++
++	if (!id)
++		return (lcd_olinuxino_eeprom.header == LCD_OLINUXINO_HEADER_MAGIC);
++	else
++		return true;
++}
++
++/**
++ * lcd_olinuxino_interface() - Get LCD interface
++ *
++ * Check if connected LCD interface is either
++ *
++ * @return interface number
++ */
++uint8_t lcd_olinuxino_interface(void)
++{
++	uint32_t id = env_get_ulong("lcd_olinuxino", 10, 0);
++
++	/* Check LVDS or PARALLEL */
++	return (id == 7891 || id == 7894) ?
++		LCD_OLINUXINO_IF_LVDS :
++		LCD_OLINUXINO_IF_PARALLEL;
++}
++
++/**
++ * lcd_olinuxino_get_data() - Get data for static described LCD
++ *
++ * @return lcd data structure or NULL
++ */
++struct lcd_olinuxino_board * lcd_olinuxino_get_data()
++{
++	uint32_t id = env_get_ulong("lcd_olinuxino", 10, 0);
++	uint32_t i;
++
++	if (!id)
++		return NULL;
++
++	for (i = 0; i < ARRAY_SIZE(lcd_olinuxino_boards); i++) {
++		if (lcd_olinuxino_boards[i].id == id)
++			return &lcd_olinuxino_boards[i];
++	}
++
++	return NULL;
++}
++
++uint32_t lcd_olinuxino_id(void)
++{
++	uint32_t id = env_get_ulong("lcd_olinuxino", 10, 0);
++
++	if (id)
++		return id;
++
++	if (lcd_olinuxino_eeprom.header == LCD_OLINUXINO_HEADER_MAGIC)
++		return lcd_olinuxino_eeprom.id;
++
++	return 0;
++}
+diff --git a/board/olimex/common/sunxi/board.c b/board/olimex/common/sunxi/board.c
+new file mode 100644
+index 0000000000..84b7aa77a6
+--- /dev/null
++++ b/board/olimex/common/sunxi/board.c
+@@ -0,0 +1,973 @@
++// SPDX-License-Identifier: GPL-2.0+
++/*
++ * (C) Copyright 2012-2013 Henrik Nordstrom <henrik@henriknordstrom.net>
++ * (C) Copyright 2013 Luke Kenneth Casson Leighton <lkcl@lkcl.net>
++ *
++ * (C) Copyright 2007-2011
++ * Allwinner Technology Co., Ltd. <www.allwinnertech.com>
++ * Tom Cubie <tangliang@allwinnertech.com>
++ *
++ * Some board init for the Allwinner A10-evb board.
++ */
++
++#include <common.h>
++#include <dm.h>
++#include <env.h>
++#include <mmc.h>
++#include <axp_pmic.h>
++#include <generic-phy.h>
++#include <phy-sun4i-usb.h>
++#include <asm/arch/clock.h>
++#include <asm/arch/cpu.h>
++#include <asm/arch/display.h>
++#include <asm/arch/dram.h>
++#include <asm/arch/gpio.h>
++#include <asm/arch/mmc.h>
++#include <asm/arch/spl.h>
++#include <u-boot/crc.h>
++#ifndef CONFIG_ARM64
++#include <asm/armv7.h>
++#endif
++#include <asm/gpio.h>
++#include <asm/io.h>
++#include <u-boot/crc.h>
++#include <env_internal.h>
++#include <linux/libfdt.h>
++#include <nand.h>
++#include <net.h>
++#include <spl.h>
++#include <sy8106a.h>
++#include <asm/setup.h>
++
++#include <dm/uclass-internal.h>
++#include <dm/device-internal.h>
++
++#include <fdt_support.h>
++
++#include <olimex/boards.h>
++#include <olimex/sys_eeprom.h>
++
++DECLARE_GLOBAL_DATA_PTR;
++
++void i2c_init_board(void)
++{
++#ifdef CONFIG_I2C0_ENABLE
++#if defined(CONFIG_MACH_SUN4I) || \
++    defined(CONFIG_MACH_SUN5I) || \
++    defined(CONFIG_MACH_SUN7I) || \
++    defined(CONFIG_MACH_SUN8I_R40)
++	sunxi_gpio_set_cfgpin(SUNXI_GPB(0), SUN4I_GPB_TWI0);
++	sunxi_gpio_set_cfgpin(SUNXI_GPB(1), SUN4I_GPB_TWI0);
++	clock_twi_onoff(0, 1);
++#elif defined(CONFIG_MACH_SUN6I)
++	sunxi_gpio_set_cfgpin(SUNXI_GPH(14), SUN6I_GPH_TWI0);
++	sunxi_gpio_set_cfgpin(SUNXI_GPH(15), SUN6I_GPH_TWI0);
++	clock_twi_onoff(0, 1);
++#elif defined(CONFIG_MACH_SUN8I)
++	sunxi_gpio_set_cfgpin(SUNXI_GPH(2), SUN8I_GPH_TWI0);
++	sunxi_gpio_set_cfgpin(SUNXI_GPH(3), SUN8I_GPH_TWI0);
++	clock_twi_onoff(0, 1);
++#elif defined(CONFIG_MACH_SUN50I)
++	sunxi_gpio_set_cfgpin(SUNXI_GPH(0), SUN50I_GPH_TWI0);
++	sunxi_gpio_set_cfgpin(SUNXI_GPH(1), SUN50I_GPH_TWI0);
++	clock_twi_onoff(0, 1);
++#endif
++#endif
++
++#ifdef CONFIG_I2C1_ENABLE
++#if defined(CONFIG_MACH_SUN4I) || \
++    defined(CONFIG_MACH_SUN7I) || \
++    defined(CONFIG_MACH_SUN8I_R40)
++	sunxi_gpio_set_cfgpin(SUNXI_GPB(18), SUN4I_GPB_TWI1);
++	sunxi_gpio_set_cfgpin(SUNXI_GPB(19), SUN4I_GPB_TWI1);
++	clock_twi_onoff(1, 1);
++#elif defined(CONFIG_MACH_SUN5I)
++	sunxi_gpio_set_cfgpin(SUNXI_GPB(15), SUN5I_GPB_TWI1);
++	sunxi_gpio_set_cfgpin(SUNXI_GPB(16), SUN5I_GPB_TWI1);
++	clock_twi_onoff(1, 1);
++#elif defined(CONFIG_MACH_SUN6I)
++	sunxi_gpio_set_cfgpin(SUNXI_GPH(16), SUN6I_GPH_TWI1);
++	sunxi_gpio_set_cfgpin(SUNXI_GPH(17), SUN6I_GPH_TWI1);
++	clock_twi_onoff(1, 1);
++#elif defined(CONFIG_MACH_SUN8I)
++	sunxi_gpio_set_cfgpin(SUNXI_GPH(4), SUN8I_GPH_TWI1);
++	sunxi_gpio_set_cfgpin(SUNXI_GPH(5), SUN8I_GPH_TWI1);
++	clock_twi_onoff(1, 1);
++#elif defined(CONFIG_MACH_SUN50I)
++	sunxi_gpio_set_cfgpin(SUNXI_GPH(2), SUN50I_GPH_TWI1);
++	sunxi_gpio_set_cfgpin(SUNXI_GPH(3), SUN50I_GPH_TWI1);
++	clock_twi_onoff(1, 1);
++#endif
++#endif
++
++#ifdef CONFIG_I2C2_ENABLE
++#if defined(CONFIG_MACH_SUN4I) || \
++    defined(CONFIG_MACH_SUN7I) || \
++    defined(CONFIG_MACH_SUN8I_R40)
++	sunxi_gpio_set_cfgpin(SUNXI_GPB(20), SUN4I_GPB_TWI2);
++	sunxi_gpio_set_cfgpin(SUNXI_GPB(21), SUN4I_GPB_TWI2);
++	clock_twi_onoff(2, 1);
++#elif defined(CONFIG_MACH_SUN5I)
++	sunxi_gpio_set_cfgpin(SUNXI_GPB(17), SUN5I_GPB_TWI2);
++	sunxi_gpio_set_cfgpin(SUNXI_GPB(18), SUN5I_GPB_TWI2);
++	clock_twi_onoff(2, 1);
++#elif defined(CONFIG_MACH_SUN6I)
++	sunxi_gpio_set_cfgpin(SUNXI_GPH(18), SUN6I_GPH_TWI2);
++	sunxi_gpio_set_cfgpin(SUNXI_GPH(19), SUN6I_GPH_TWI2);
++	clock_twi_onoff(2, 1);
++#elif defined(CONFIG_MACH_SUN8I)
++	sunxi_gpio_set_cfgpin(SUNXI_GPE(12), SUN8I_GPE_TWI2);
++	sunxi_gpio_set_cfgpin(SUNXI_GPE(13), SUN8I_GPE_TWI2);
++	clock_twi_onoff(2, 1);
++#elif defined(CONFIG_MACH_SUN50I)
++	sunxi_gpio_set_cfgpin(SUNXI_GPE(14), SUN50I_GPE_TWI2);
++	sunxi_gpio_set_cfgpin(SUNXI_GPE(15), SUN50I_GPE_TWI2);
++	clock_twi_onoff(2, 1);
++#endif
++#endif
++
++#ifdef CONFIG_I2C3_ENABLE
++#if defined(CONFIG_MACH_SUN6I)
++	sunxi_gpio_set_cfgpin(SUNXI_GPG(10), SUN6I_GPG_TWI3);
++	sunxi_gpio_set_cfgpin(SUNXI_GPG(11), SUN6I_GPG_TWI3);
++	clock_twi_onoff(3, 1);
++#elif defined(CONFIG_MACH_SUN7I) || \
++      defined(CONFIG_MACH_SUN8I_R40)
++	sunxi_gpio_set_cfgpin(SUNXI_GPI(0), SUN7I_GPI_TWI3);
++	sunxi_gpio_set_cfgpin(SUNXI_GPI(1), SUN7I_GPI_TWI3);
++	clock_twi_onoff(3, 1);
++#endif
++#endif
++
++#ifdef CONFIG_I2C4_ENABLE
++#if defined(CONFIG_MACH_SUN7I) || \
++    defined(CONFIG_MACH_SUN8I_R40)
++	sunxi_gpio_set_cfgpin(SUNXI_GPI(2), SUN7I_GPI_TWI4);
++	sunxi_gpio_set_cfgpin(SUNXI_GPI(3), SUN7I_GPI_TWI4);
++	clock_twi_onoff(4, 1);
++#endif
++#endif
++
++#ifdef CONFIG_R_I2C_ENABLE
++#ifdef CONFIG_MACH_SUN50I
++	clock_twi_onoff(5, 1);
++	sunxi_gpio_set_cfgpin(SUNXI_GPL(8), SUN50I_GPL_R_TWI);
++	sunxi_gpio_set_cfgpin(SUNXI_GPL(9), SUN50I_GPL_R_TWI);
++#else
++	clock_twi_onoff(5, 1);
++	sunxi_gpio_set_cfgpin(SUNXI_GPL(0), SUN8I_H3_GPL_R_TWI);
++	sunxi_gpio_set_cfgpin(SUNXI_GPL(1), SUN8I_H3_GPL_R_TWI);
++#endif
++#endif
++}
++
++#if defined(CONFIG_ENV_IS_IN_MMC) && defined(CONFIG_ENV_IS_IN_FAT)
++enum env_location env_get_location(enum env_operation op, int prio)
++{
++	switch (prio) {
++	case 0:
++		return ENVL_FAT;
++
++	case 1:
++		return ENVL_MMC;
++
++	default:
++		return ENVL_UNKNOWN;
++	}
++}
++#endif
++
++#ifdef CONFIG_DM_MMC
++static void mmc_pinmux_setup(int sdc);
++#endif
++
++/* add board specific code here */
++int board_init(void)
++{
++	__maybe_unused int id_pfr1, ret, satapwr_pin, macpwr_pin;
++	__maybe_unused struct udevice *dev;
++
++	gd->bd->bi_boot_params = (PHYS_SDRAM_0 + 0x100);
++
++#ifndef CONFIG_ARM64
++	asm volatile("mrc p15, 0, %0, c0, c1, 1" : "=r"(id_pfr1));
++	debug("id_pfr1: 0x%08x\n", id_pfr1);
++	/* Generic Timer Extension available? */
++	if ((id_pfr1 >> CPUID_ARM_GENTIMER_SHIFT) & 0xf) {
++		uint32_t freq;
++
++		debug("Setting CNTFRQ\n");
++
++		/*
++		 * CNTFRQ is a secure register, so we will crash if we try to
++		 * write this from the non-secure world (read is OK, though).
++		 * In case some bootcode has already set the correct value,
++		 * we avoid the risk of writing to it.
++		 */
++		asm volatile("mrc p15, 0, %0, c14, c0, 0" : "=r"(freq));
++		if (freq != COUNTER_FREQUENCY) {
++			debug("arch timer frequency is %d Hz, should be %d, fixing ...\n",
++			      freq, COUNTER_FREQUENCY);
++#ifdef CONFIG_NON_SECURE
++			printf("arch timer frequency is wrong, but cannot adjust it\n");
++#else
++			asm volatile("mcr p15, 0, %0, c14, c0, 0"
++				     : : "r"(COUNTER_FREQUENCY));
++#endif
++		}
++	}
++#endif /* !CONFIG_ARM64 */
++
++	ret = axp_gpio_init();
++	if (ret)
++		return ret;
++
++#ifdef CONFIG_SATAPWR
++	satapwr_pin = sunxi_name_to_gpio(CONFIG_SATAPWR);
++	gpio_request(satapwr_pin, "satapwr");
++	gpio_direction_output(satapwr_pin, 1);
++	/* Give attached sata device time to power-up to avoid link timeouts */
++	mdelay(500);
++#endif
++#ifdef CONFIG_MACPWR
++	macpwr_pin = sunxi_name_to_gpio(CONFIG_MACPWR);
++	gpio_request(macpwr_pin, "macpwr");
++	gpio_direction_output(macpwr_pin, 1);
++#endif
++
++#ifdef CONFIG_DM_I2C
++	/*
++	 * Temporary workaround for enabling I2C clocks until proper sunxi DM
++	 * clk, reset and pinctrl drivers land.
++	 */
++	i2c_init_board();
++#endif
++
++#ifdef CONFIG_DM_MMC
++	/*
++	 * Temporary workaround for enabling MMC clocks until a sunxi DM
++	 * pinctrl driver lands.
++	 */
++	mmc_pinmux_setup(0);
++
++	if (eeprom->config.storage == 'e')
++		mmc_pinmux_setup(2);
++
++#ifdef CONFIG_TARGET_A20_OLINUXINO
++	switch (olinuxino_get_board_family()) {
++	case OLINUXINO_MICRO:
++	case OLINUXINO_SOM:
++		mmc_pinmux_setup(3);
++		break;
++	default:
++		break;
++	}
++#endif /* CONFIG_TARGET_A20_OLINUXINO */
++#endif	/* CONFIG_DM_MMC */
++
++#ifdef CONFIG_DM_SPI_FLASH
++	if (olinuxino_board_has_spi()) {
++		ret = uclass_first_device(UCLASS_SPI_FLASH, &dev);
++		if (ret) {
++			printf("Failed to find SPI flash device\n");
++			return 0;
++		}
++
++		ret = device_probe(dev);
++		if (ret) {
++			printf("Failed to probe SPI flash device\n");
++			return 0;
++		}
++	}
++#endif
++
++	return 0;
++}
++
++/*
++ * On older SoCs the SPL is actually at address zero, so using NULL as
++ * an error value does not work.
++ */
++#define INVALID_SPL_HEADER ((void *)~0UL)
++
++static struct boot_file_head * get_spl_header(uint8_t req_version)
++{
++	struct boot_file_head *spl = (void *)(ulong)SPL_ADDR;
++	uint8_t spl_header_version = spl->spl_signature[3];
++
++	/* Is there really the SPL header (still) there? */
++	if (memcmp(spl->spl_signature, SPL_SIGNATURE, 3) != 0)
++		return INVALID_SPL_HEADER;
++
++	if (spl_header_version < req_version) {
++		printf("sunxi SPL version mismatch: expected %u, got %u\n",
++		       req_version, spl_header_version);
++		return INVALID_SPL_HEADER;
++	}
++
++	return spl;
++}
++
++int dram_init(void)
++{
++	struct boot_file_head *spl = get_spl_header(SPL_DRAM_HEADER_VERSION);
++
++	if (spl == INVALID_SPL_HEADER)
++		gd->ram_size = get_ram_size((long *)PHYS_SDRAM_0,
++					    PHYS_SDRAM_0_SIZE);
++	else
++		gd->ram_size = (phys_addr_t)spl->dram_size << 20;
++
++	if (gd->ram_size > CONFIG_SUNXI_DRAM_MAX_SIZE)
++		gd->ram_size = CONFIG_SUNXI_DRAM_MAX_SIZE;
++
++	return 0;
++}
++
++#ifdef CONFIG_MMC
++static void mmc_pinmux_setup(int sdc)
++{
++	unsigned int pin;
++	__maybe_unused int pins;
++
++	switch (sdc) {
++	case 0:
++		/* SDC0: PF0-PF5 */
++		for (pin = SUNXI_GPF(0); pin <= SUNXI_GPF(5); pin++) {
++			sunxi_gpio_set_cfgpin(pin, SUNXI_GPF_SDC0);
++			sunxi_gpio_set_pull(pin, SUNXI_GPIO_PULL_UP);
++			sunxi_gpio_set_drv(pin, 2);
++		}
++		break;
++
++	case 1:
++		pins = sunxi_name_to_gpio_bank(CONFIG_MMC1_PINS);
++
++#if defined(CONFIG_MACH_SUN4I) || defined(CONFIG_MACH_SUN7I) || \
++    defined(CONFIG_MACH_SUN8I_R40)
++		if (pins == SUNXI_GPIO_H) {
++			/* SDC1: PH22-PH-27 */
++			for (pin = SUNXI_GPH(22); pin <= SUNXI_GPH(27); pin++) {
++				sunxi_gpio_set_cfgpin(pin, SUN4I_GPH_SDC1);
++				sunxi_gpio_set_pull(pin, SUNXI_GPIO_PULL_UP);
++				sunxi_gpio_set_drv(pin, 2);
++			}
++		} else {
++			/* SDC1: PG0-PG5 */
++			for (pin = SUNXI_GPG(0); pin <= SUNXI_GPG(5); pin++) {
++				sunxi_gpio_set_cfgpin(pin, SUN4I_GPG_SDC1);
++				sunxi_gpio_set_pull(pin, SUNXI_GPIO_PULL_UP);
++				sunxi_gpio_set_drv(pin, 2);
++			}
++		}
++#elif defined(CONFIG_MACH_SUN5I)
++		/* SDC1: PG3-PG8 */
++		for (pin = SUNXI_GPG(3); pin <= SUNXI_GPG(8); pin++) {
++			sunxi_gpio_set_cfgpin(pin, SUN5I_GPG_SDC1);
++			sunxi_gpio_set_pull(pin, SUNXI_GPIO_PULL_UP);
++			sunxi_gpio_set_drv(pin, 2);
++		}
++#elif defined(CONFIG_MACH_SUN6I)
++		/* SDC1: PG0-PG5 */
++		for (pin = SUNXI_GPG(0); pin <= SUNXI_GPG(5); pin++) {
++			sunxi_gpio_set_cfgpin(pin, SUN6I_GPG_SDC1);
++			sunxi_gpio_set_pull(pin, SUNXI_GPIO_PULL_UP);
++			sunxi_gpio_set_drv(pin, 2);
++		}
++#elif defined(CONFIG_MACH_SUN8I)
++		if (pins == SUNXI_GPIO_D) {
++			/* SDC1: PD2-PD7 */
++			for (pin = SUNXI_GPD(2); pin <= SUNXI_GPD(7); pin++) {
++				sunxi_gpio_set_cfgpin(pin, SUN8I_GPD_SDC1);
++				sunxi_gpio_set_pull(pin, SUNXI_GPIO_PULL_UP);
++				sunxi_gpio_set_drv(pin, 2);
++			}
++		} else {
++			/* SDC1: PG0-PG5 */
++			for (pin = SUNXI_GPG(0); pin <= SUNXI_GPG(5); pin++) {
++				sunxi_gpio_set_cfgpin(pin, SUN8I_GPG_SDC1);
++				sunxi_gpio_set_pull(pin, SUNXI_GPIO_PULL_UP);
++				sunxi_gpio_set_drv(pin, 2);
++			}
++		}
++#endif
++		break;
++
++	case 2:
++		pins = sunxi_name_to_gpio_bank(CONFIG_MMC2_PINS);
++
++#if defined(CONFIG_MACH_SUN4I) || defined(CONFIG_MACH_SUN7I)
++		/* SDC2: PC6-PC11 */
++		for (pin = SUNXI_GPC(6); pin <= SUNXI_GPC(11); pin++) {
++			sunxi_gpio_set_cfgpin(pin, SUNXI_GPC_SDC2);
++			sunxi_gpio_set_pull(pin, SUNXI_GPIO_PULL_UP);
++			sunxi_gpio_set_drv(pin, 2);
++		}
++#elif defined(CONFIG_MACH_SUN5I)
++		if (pins == SUNXI_GPIO_E) {
++			/* SDC2: PE4-PE9 */
++			for (pin = SUNXI_GPE(4); pin <= SUNXI_GPD(9); pin++) {
++				sunxi_gpio_set_cfgpin(pin, SUN5I_GPE_SDC2);
++				sunxi_gpio_set_pull(pin, SUNXI_GPIO_PULL_UP);
++				sunxi_gpio_set_drv(pin, 2);
++			}
++		} else {
++			/* SDC2: PC6-PC15 */
++			for (pin = SUNXI_GPC(6); pin <= SUNXI_GPC(15); pin++) {
++				sunxi_gpio_set_cfgpin(pin, SUNXI_GPC_SDC2);
++				sunxi_gpio_set_pull(pin, SUNXI_GPIO_PULL_UP);
++				sunxi_gpio_set_drv(pin, 2);
++			}
++		}
++#elif defined(CONFIG_MACH_SUN6I)
++		if (pins == SUNXI_GPIO_A) {
++			/* SDC2: PA9-PA14 */
++			for (pin = SUNXI_GPA(9); pin <= SUNXI_GPA(14); pin++) {
++				sunxi_gpio_set_cfgpin(pin, SUN6I_GPA_SDC2);
++				sunxi_gpio_set_pull(pin, SUNXI_GPIO_PULL_UP);
++				sunxi_gpio_set_drv(pin, 2);
++			}
++		} else {
++			/* SDC2: PC6-PC15, PC24 */
++			for (pin = SUNXI_GPC(6); pin <= SUNXI_GPC(15); pin++) {
++				sunxi_gpio_set_cfgpin(pin, SUNXI_GPC_SDC2);
++				sunxi_gpio_set_pull(pin, SUNXI_GPIO_PULL_UP);
++				sunxi_gpio_set_drv(pin, 2);
++			}
++
++			sunxi_gpio_set_cfgpin(SUNXI_GPC(24), SUNXI_GPC_SDC2);
++			sunxi_gpio_set_pull(SUNXI_GPC(24), SUNXI_GPIO_PULL_UP);
++			sunxi_gpio_set_drv(SUNXI_GPC(24), 2);
++		}
++#elif defined(CONFIG_MACH_SUN8I_R40)
++		/* SDC2: PC6-PC15, PC24 */
++		for (pin = SUNXI_GPC(6); pin <= SUNXI_GPC(15); pin++) {
++			sunxi_gpio_set_cfgpin(pin, SUNXI_GPC_SDC2);
++			sunxi_gpio_set_pull(pin, SUNXI_GPIO_PULL_UP);
++			sunxi_gpio_set_drv(pin, 2);
++		}
++
++		sunxi_gpio_set_cfgpin(SUNXI_GPC(24), SUNXI_GPC_SDC2);
++		sunxi_gpio_set_pull(SUNXI_GPC(24), SUNXI_GPIO_PULL_UP);
++		sunxi_gpio_set_drv(SUNXI_GPC(24), 2);
++#elif defined(CONFIG_MACH_SUN8I) || defined(CONFIG_MACH_SUN50I)
++		/* SDC2: PC5-PC6, PC8-PC16 */
++		for (pin = SUNXI_GPC(5); pin <= SUNXI_GPC(6); pin++) {
++			sunxi_gpio_set_cfgpin(pin, SUNXI_GPC_SDC2);
++			sunxi_gpio_set_pull(pin, SUNXI_GPIO_PULL_UP);
++			sunxi_gpio_set_drv(pin, 2);
++		}
++
++		for (pin = SUNXI_GPC(8); pin <= SUNXI_GPC(16); pin++) {
++			sunxi_gpio_set_cfgpin(pin, SUNXI_GPC_SDC2);
++			sunxi_gpio_set_pull(pin, SUNXI_GPIO_PULL_UP);
++			sunxi_gpio_set_drv(pin, 2);
++		}
++#elif defined(CONFIG_MACH_SUN50I_H6)
++		/* SDC2: PC4-PC14 */
++		for (pin = SUNXI_GPC(4); pin <= SUNXI_GPC(14); pin++) {
++			sunxi_gpio_set_cfgpin(pin, SUNXI_GPC_SDC2);
++			sunxi_gpio_set_pull(pin, SUNXI_GPIO_PULL_UP);
++			sunxi_gpio_set_drv(pin, 2);
++		}
++#elif defined(CONFIG_MACH_SUN9I)
++		/* SDC2: PC6-PC16 */
++		for (pin = SUNXI_GPC(6); pin <= SUNXI_GPC(16); pin++) {
++			sunxi_gpio_set_cfgpin(pin, SUNXI_GPC_SDC2);
++			sunxi_gpio_set_pull(pin, SUNXI_GPIO_PULL_UP);
++			sunxi_gpio_set_drv(pin, 2);
++		}
++#endif
++		break;
++
++	case 3:
++		pins = sunxi_name_to_gpio_bank(CONFIG_MMC3_PINS);
++
++#if defined(CONFIG_MACH_SUN4I) || defined(CONFIG_MACH_SUN7I) || \
++    defined(CONFIG_MACH_SUN8I_R40)
++		/* SDC3: PI4-PI9 */
++		for (pin = SUNXI_GPI(4); pin <= SUNXI_GPI(9); pin++) {
++			sunxi_gpio_set_cfgpin(pin, SUNXI_GPI_SDC3);
++			sunxi_gpio_set_pull(pin, SUNXI_GPIO_PULL_UP);
++			sunxi_gpio_set_drv(pin, 2);
++		}
++#elif defined(CONFIG_MACH_SUN6I)
++		if (pins == SUNXI_GPIO_A) {
++			/* SDC3: PA9-PA14 */
++			for (pin = SUNXI_GPA(9); pin <= SUNXI_GPA(14); pin++) {
++				sunxi_gpio_set_cfgpin(pin, SUN6I_GPA_SDC3);
++				sunxi_gpio_set_pull(pin, SUNXI_GPIO_PULL_UP);
++				sunxi_gpio_set_drv(pin, 2);
++			}
++		} else {
++			/* SDC3: PC6-PC15, PC24 */
++			for (pin = SUNXI_GPC(6); pin <= SUNXI_GPC(15); pin++) {
++				sunxi_gpio_set_cfgpin(pin, SUN6I_GPC_SDC3);
++				sunxi_gpio_set_pull(pin, SUNXI_GPIO_PULL_UP);
++				sunxi_gpio_set_drv(pin, 2);
++			}
++
++			sunxi_gpio_set_cfgpin(SUNXI_GPC(24), SUN6I_GPC_SDC3);
++			sunxi_gpio_set_pull(SUNXI_GPC(24), SUNXI_GPIO_PULL_UP);
++			sunxi_gpio_set_drv(SUNXI_GPC(24), 2);
++		}
++#endif
++		break;
++
++	default:
++		printf("sunxi: invalid MMC slot %d for pinmux setup\n", sdc);
++		break;
++	}
++}
++
++int board_mmc_init(bd_t *bis)
++{
++	struct mmc *mmc;
++
++	mmc_pinmux_setup(0);
++	mmc = sunxi_mmc_init(0);
++	if (!mmc)
++		return -1;
++
++	if (eeprom->config.storage == 'e') {
++		mmc_pinmux_setup(2);
++		mmc = sunxi_mmc_init(2);
++		if (!mmc)
++			return -1;
++	}
++
++	return 0;
++}
++#endif /* CONFIG_MMC */
++
++#ifdef CONFIG_SPL_BUILD
++
++static void sunxi_spl_store_dram_size(phys_addr_t dram_size)
++{
++	struct boot_file_head *spl = get_spl_header(SPL_DT_HEADER_VERSION);
++
++	if (spl == INVALID_SPL_HEADER)
++		return;
++
++	/* Promote the header version for U-Boot proper, if needed. */
++	if (spl->spl_signature[3] < SPL_DRAM_HEADER_VERSION)
++		spl->spl_signature[3] = SPL_DRAM_HEADER_VERSION;
++
++	spl->dram_size = dram_size >> 20;
++}
++
++void sunxi_board_init(void)
++{
++	int power_failed = 0;
++
++#ifdef CONFIG_SY8106A_POWER
++	power_failed = sy8106a_set_vout1(CONFIG_SY8106A_VOUT1_VOLT);
++#endif
++
++#if defined CONFIG_AXP152_POWER || defined CONFIG_AXP209_POWER || \
++	defined CONFIG_AXP221_POWER || defined CONFIG_AXP809_POWER || \
++	defined CONFIG_AXP818_POWER
++	power_failed = axp_init();
++
++#if defined CONFIG_AXP221_POWER || defined CONFIG_AXP809_POWER || \
++	defined CONFIG_AXP818_POWER
++	power_failed |= axp_set_dcdc1(CONFIG_AXP_DCDC1_VOLT);
++#endif
++	power_failed |= axp_set_dcdc2(CONFIG_AXP_DCDC2_VOLT);
++	power_failed |= axp_set_dcdc3(CONFIG_AXP_DCDC3_VOLT);
++#if !defined(CONFIG_AXP209_POWER) && !defined(CONFIG_AXP818_POWER)
++	power_failed |= axp_set_dcdc4(CONFIG_AXP_DCDC4_VOLT);
++#endif
++#if defined CONFIG_AXP221_POWER || defined CONFIG_AXP809_POWER || \
++	defined CONFIG_AXP818_POWER
++	power_failed |= axp_set_dcdc5(CONFIG_AXP_DCDC5_VOLT);
++#endif
++
++#if defined CONFIG_AXP221_POWER || defined CONFIG_AXP809_POWER || \
++	defined CONFIG_AXP818_POWER
++	power_failed |= axp_set_aldo1(CONFIG_AXP_ALDO1_VOLT);
++#endif
++	power_failed |= axp_set_aldo2(CONFIG_AXP_ALDO2_VOLT);
++#if !defined(CONFIG_AXP152_POWER)
++	power_failed |= axp_set_aldo3(CONFIG_AXP_ALDO3_VOLT);
++#endif
++#ifdef CONFIG_AXP209_POWER
++	power_failed |= axp_set_aldo4(CONFIG_AXP_ALDO4_VOLT);
++#endif
++
++#if defined(CONFIG_AXP221_POWER) || defined(CONFIG_AXP809_POWER) || \
++	defined(CONFIG_AXP818_POWER)
++	power_failed |= axp_set_dldo(1, CONFIG_AXP_DLDO1_VOLT);
++	power_failed |= axp_set_dldo(2, CONFIG_AXP_DLDO2_VOLT);
++#if !defined CONFIG_AXP809_POWER
++	power_failed |= axp_set_dldo(3, CONFIG_AXP_DLDO3_VOLT);
++	power_failed |= axp_set_dldo(4, CONFIG_AXP_DLDO4_VOLT);
++#endif
++	power_failed |= axp_set_eldo(1, CONFIG_AXP_ELDO1_VOLT);
++	power_failed |= axp_set_eldo(2, CONFIG_AXP_ELDO2_VOLT);
++	power_failed |= axp_set_eldo(3, CONFIG_AXP_ELDO3_VOLT);
++#endif
++
++#ifdef CONFIG_AXP818_POWER
++	power_failed |= axp_set_fldo(1, CONFIG_AXP_FLDO1_VOLT);
++	power_failed |= axp_set_fldo(2, CONFIG_AXP_FLDO2_VOLT);
++	power_failed |= axp_set_fldo(3, CONFIG_AXP_FLDO3_VOLT);
++#endif
++
++#if defined CONFIG_AXP809_POWER || defined CONFIG_AXP818_POWER
++	power_failed |= axp_set_sw(IS_ENABLED(CONFIG_AXP_SW_ON));
++#endif
++#endif
++	printf("DRAM:");
++	gd->ram_size = sunxi_dram_init();
++	printf(" %d MiB\n", (int)(gd->ram_size >> 20));
++	if (!gd->ram_size)
++		hang();
++
++	sunxi_spl_store_dram_size(gd->ram_size);
++
++	/*
++	 * Only clock up the CPU to full speed if we are reasonably
++	 * assured it's being powered with suitable core voltage
++	 */
++	if (!power_failed)
++		clock_set_pll1(CONFIG_SYS_CLK_FREQ);
++	else
++		printf("Failed to set core voltage! Can't set CPU frequency\n");
++}
++#endif
++
++#ifdef CONFIG_USB_GADGET
++int g_dnl_board_usb_cable_connected(void)
++{
++	struct udevice *dev;
++	struct phy phy;
++	int ret;
++
++	ret = uclass_get_device(UCLASS_USB_GADGET_GENERIC, 0, &dev);
++	if (ret) {
++		pr_err("%s: Cannot find USB device\n", __func__);
++		return ret;
++	}
++
++	ret = generic_phy_get_by_name(dev, "usb", &phy);
++	if (ret) {
++		pr_err("failed to get %s USB PHY\n", dev->name);
++		return ret;
++	}
++
++	ret = generic_phy_init(&phy);
++	if (ret) {
++		pr_err("failed to init %s USB PHY\n", dev->name);
++		return ret;
++	}
++
++	ret = sun4i_usb_phy_vbus_detect(&phy);
++	if (ret == 1) {
++		pr_err("A charger is plugged into the OTG\n");
++		return -ENODEV;
++	}
++
++	return ret;
++}
++#endif
++
++#ifdef CONFIG_SERIAL_TAG
++void get_board_serial(struct tag_serialnr *serialnr)
++{
++	char *serial_string;
++	unsigned long long serial;
++
++	serial_string = env_get("serial#");
++
++	if (serial_string) {
++		serial = simple_strtoull(serial_string, NULL, 16);
++
++		serialnr->high = (unsigned int) (serial >> 32);
++		serialnr->low = (unsigned int) (serial & 0xffffffff);
++	} else {
++		serialnr->high = 0;
++		serialnr->low = 0;
++	}
++}
++#endif
++
++/*
++ * Check the SPL header for the "sunxi" variant. If found: parse values
++ * that might have been passed by the loader ("fel" utility), and update
++ * the environment accordingly.
++ */
++static void parse_spl_header(const uint32_t spl_addr)
++{
++	struct boot_file_head *spl = get_spl_header(SPL_ENV_HEADER_VERSION);
++
++	if (spl == INVALID_SPL_HEADER)
++		return;
++
++	if (!spl->fel_script_address)
++		return;
++
++	if (spl->fel_uEnv_length != 0) {
++		/*
++		 * data is expected in uEnv.txt compatible format, so "env
++		 * import -t" the string(s) at fel_script_address right away.
++		 */
++		himport_r(&env_htab, (char *)(uintptr_t)spl->fel_script_address,
++			  spl->fel_uEnv_length, '\n', H_NOCLEAR, 0, 0, NULL);
++		return;
++	}
++	/* otherwise assume .scr format (mkimage-type script) */
++	env_set_hex("fel_scriptaddr", spl->fel_script_address);
++}
++
++/*
++ * Note this function gets called multiple times.
++ * It must not make any changes to env variables which already exist.
++ */
++static void setup_environment(const void *fdt)
++{
++	char serial_string[17] = { 0 };
++	unsigned int sid[4];
++	uint8_t mac_addr[6];
++	char ethaddr[16];
++	int i, ret;
++	char cmd[64];
++
++#if defined(CONFIG_TARGET_A20_OLINUXINO)
++	char rev[3];
++
++	/* Set board ID */
++	sprintf(cmd,"env set -f board_id %d", eeprom->id);
++	run_command(cmd, 0);
++
++	/* Set board name */
++	sprintf(cmd,"env set -f board_name %s", olinuxino_get_board_name());
++	run_command(cmd, 0);
++
++	/* Set board revision */
++	olinuxino_get_board_revision(rev);
++	sprintf(cmd,"env set -f board_revision %s", rev);
++	run_command(cmd, 0);
++
++	/* Set board MAC */
++	olinuxino_get_board_mac(ethaddr);
++	sprintf(cmd,"env set -f ethaddr %s\n", ethaddr);
++	run_command(cmd, 0);
++
++	/* Set board serial */
++	sprintf(cmd,"env set -f serial# %08x", eeprom->serial);
++	run_command(cmd, 0);
++#elif defined(CONFIG_TARGET_A64_OLINUXINO)
++	/* Set board ID */
++	sprintf(cmd,"env set -f board_id %d", eeprom->id);
++	run_command(cmd, 0);
++#endif
++
++	ret = sunxi_get_sid(sid);
++	if (ret == 0 && sid[0] != 0) {
++		/*
++		 * The single words 1 - 3 of the SID have quite a few bits
++		 * which are the same on many models, so we take a crc32
++		 * of all 3 words, to get a more unique value.
++		 *
++		 * Note we only do this on newer SoCs as we cannot change
++		 * the algorithm on older SoCs since those have been using
++		 * fixed mac-addresses based on only using word 3 for a
++		 * long time and changing a fixed mac-address with an
++		 * u-boot update is not good.
++		 */
++#if !defined(CONFIG_MACH_SUN4I) && !defined(CONFIG_MACH_SUN5I) && \
++    !defined(CONFIG_MACH_SUN6I) && !defined(CONFIG_MACH_SUN7I) && \
++    !defined(CONFIG_MACH_SUN8I_A23) && !defined(CONFIG_MACH_SUN8I_A33)
++		sid[3] = crc32(0, (unsigned char *)&sid[1], 12);
++#endif
++
++		/* Ensure the NIC specific bytes of the mac are not all 0 */
++		if ((sid[3] & 0xffffff) == 0)
++			sid[3] |= 0x800000;
++
++		for (i = 0; i < 4; i++) {
++			sprintf(ethaddr, "ethernet%d", i);
++			if (!fdt_get_alias(fdt, ethaddr))
++				continue;
++
++			if (i == 0)
++				strcpy(ethaddr, "ethaddr");
++			else
++				sprintf(ethaddr, "eth%daddr", i);
++
++			if (env_get(ethaddr))
++				continue;
++
++			/* Non OUI / registered MAC address */
++			mac_addr[0] = (i << 4) | 0x02;
++			mac_addr[1] = (sid[0] >>  0) & 0xff;
++			mac_addr[2] = (sid[3] >> 24) & 0xff;
++			mac_addr[3] = (sid[3] >> 16) & 0xff;
++			mac_addr[4] = (sid[3] >>  8) & 0xff;
++			mac_addr[5] = (sid[3] >>  0) & 0xff;
++
++			eth_env_set_enetaddr(ethaddr, mac_addr);
++		}
++
++		if (!env_get("serial#")) {
++			snprintf(serial_string, sizeof(serial_string),
++				"%08x%08x", sid[0], sid[3]);
++
++			env_set("serial#", serial_string);
++		}
++	}
++}
++
++int misc_init_r(void)
++{
++	uint boot;
++
++	env_set("fel_booted", NULL);
++	env_set("fel_scriptaddr", NULL);
++	env_set("mmc_bootdev", NULL);
++	env_set("spi_bootdev", NULL);
++
++	boot = sunxi_get_boot_device();
++	/* determine if we are running in FEL mode */
++	if (boot == BOOT_DEVICE_BOARD) {
++		env_set("fel_booted", "1");
++		parse_spl_header(SPL_ADDR);
++	/* or if we booted from MMC, and which one */
++	} else if (boot == BOOT_DEVICE_MMC1) {
++		env_set("mmc_bootdev", "0");
++	} else if (boot == BOOT_DEVICE_MMC2) {
++		env_set("mmc_bootdev", "1");
++	} else if (boot == BOOT_DEVICE_SPI) {
++		env_set("spi_booted", "1");
++
++		/**
++		 * When booting from SPI always set mmc_bootdev
++		 * to the eMMC
++		 */
++		if (eeprom->config.storage == 'e')
++			env_set("mmc_bootdev", "1");
++		else
++			env_set("mmc_bootdev", "0");
++	}
++
++	setup_environment(gd->fdt_blob);
++
++#ifdef CONFIG_USB_ETHER
++	usb_ether_init();
++#endif
++
++	return 0;
++}
++
++#ifdef CONFIG_OF_LIBFDT_OVERLAY
++static void olinuxino_load_overlays(void *blob)
++{
++	int ret;
++	char cmd[128];
++	char *overlay;
++	void *backup;
++
++	overlay = strtok(env_get("fdtoverlays"), " ");
++	if (!overlay)
++		return;
++
++	/* Remove optional new line */
++	if (*(overlay + strlen(overlay) - 1) == '\n')
++		*(overlay + strlen(overlay) - 1) = 0;
++
++	/* Make a backup of the original blob */
++	backup = malloc(fdt_totalsize(blob));
++	if (!backup) {
++		printf("Failed to make backup copy.\n");
++		return;
++	}
++	memcpy(backup, blob, fdt_totalsize(blob));
++
++	/* Increase size */
++	ret = fdt_increase_size(blob, 0x1000);
++	if (ret) {
++		printf("Failed to increase FDT blob size.\n");
++		return;
++	}
++
++	while (overlay) {
++		printf("Applying overlay: \'%s\'...\n", overlay);
++
++		/* Load file */
++		sprintf(cmd, "load mmc 0 0x4fc00000 %s", overlay);
++		ret = run_command(cmd, 0);
++		if (ret) {
++			printf("Failed to load overlay.\n");
++			goto err;
++		}
++
++		/* Apply */
++		ret = run_command("fdt apply 0x4fc00000", 0);
++		if (ret) {
++			printf("Failed to apply overlay.\n");
++
++			printf("Restoring the original FDT blob...\n");
++			memcpy(blob, backup, fdt_totalsize(backup));
++			fdt_set_totalsize(blob, fdt_totalsize(backup));
++			return;
++		}
++err:
++		overlay = strtok(NULL, " ");
++	}
++}
++#else
++static void olinuxino_load_overlays(void *blob) {}
++#endif
++
++int ft_board_setup(void *blob, bd_t *bd)
++{
++	int __maybe_unused r;
++	/*
++	 * Call setup_environment again in case the boot fdt has
++	 * ethernet aliases the u-boot copy does not have.
++	 */
++	setup_environment(blob);
++
++#ifdef CONFIG_VIDEO_DT_SIMPLEFB
++	r = sunxi_simplefb_setup(blob);
++	if (r)
++		return r;
++#endif
++
++	olinuxino_load_overlays(blob);
++
++	return 0;
++}
++
++#ifdef CONFIG_SPL_LOAD_FIT
++int board_fit_config_name_match(const char *name)
++{
++	struct boot_file_head *spl = get_spl_header(SPL_DT_HEADER_VERSION);
++	const char *cmp_str = (const char *)spl;
++
++	/* Check if there is a DT name stored in the SPL header and use that. */
++	if (spl != INVALID_SPL_HEADER && spl->dt_name_offset) {
++		cmp_str += spl->dt_name_offset;
++	} else {
++#ifdef CONFIG_DEFAULT_DEVICE_TREE
++		cmp_str = CONFIG_DEFAULT_DEVICE_TREE;
++#else
++		return 0;
++#endif
++	};
++
++#ifdef CONFIG_PINE64_DT_SELECTION
++/* Differentiate the two Pine64 board DTs by their DRAM size. */
++	if (strstr(name, "-pine64") && strstr(cmp_str, "-pine64")) {
++		if ((gd->ram_size > 512 * 1024 * 1024))
++			return !strstr(name, "plus");
++		else
++			return !!strstr(name, "plus");
++	} else {
++		return strcmp(name, cmp_str);
++	}
++#endif
++	return strcmp(name, cmp_str);
++}
++#endif
+diff --git a/board/olimex/common/sys_eeprom.c b/board/olimex/common/sys_eeprom.c
+new file mode 100644
+index 0000000000..b0b92f988d
+--- /dev/null
++++ b/board/olimex/common/sys_eeprom.c
+@@ -0,0 +1,196 @@
++/*
++ * SPDX-License-Identifier: (GPL-2.0+ OR MIT)
++ *
++ * Copyright (C) 2018 olinuxino Ltd.
++ *   Author: Stefan Mavrodiev <stefan@olinuxino.com>
++ */
++#include <common.h>
++#include <i2c.h>
++#include <mmc.h>
++#include <spl.h>
++#include <asm/arch/spl.h>
++#include <u-boot/crc.h>
++
++#include <olimex/sys_eeprom.h>
++
++struct olinuxino_eeprom *eeprom = OLINUXINO_EEPROM_DATA;
++
++#if defined(OLINUXINO_EEPROM_BUS)
++static int olinuxino_i2c_eeprom_init(void)
++{
++	int ret;
++
++	if ((ret = i2c_set_bus_num(OLINUXINO_EEPROM_BUS)))
++		return ret;
++
++	if ((ret = i2c_probe(0x50)))
++		return ret;
++
++	return 0;
++}
++
++int olinuxino_i2c_eeprom_read(void)
++{
++	uint32_t crc;
++	int ret;
++
++	if ((ret = olinuxino_i2c_eeprom_init()))
++		return ret;
++
++	if ((ret = i2c_read(OLINUXINO_EEPROM_ADDRESS, 0, 1, (uint8_t *)eeprom, 256)))
++		return ret;
++
++	if (eeprom->header != OLINUXINO_EEPROM_MAGIC) {
++		memset(eeprom, 0xFF, 256);
++		return 1;
++	}
++
++	crc = crc32(0L, (uint8_t *)eeprom, 252);
++	if (eeprom->crc != crc) {
++		memset(eeprom, 0xFF, 256);
++		return 1;
++	}
++
++	return 0;
++}
++
++#ifndef CONFIG_SPL_BUILD
++int olinuxino_i2c_eeprom_write(void)
++{
++	uint8_t *data = (uint8_t *)eeprom;
++	uint16_t i;
++	int ret;
++
++	if ((ret = olinuxino_i2c_eeprom_init())) {
++		printf("ERROR: Failed to init eeprom!\n");
++		return ret;
++	}
++
++	/* Restore magic header */
++	eeprom->header = OLINUXINO_EEPROM_MAGIC;
++
++	/* Calculate new chechsum */
++	eeprom->crc = crc32(0L, data, 252);
++
++	/* Write new values */
++	for(i = 0; i < 256; i += 16) {
++		if ((ret = i2c_write(OLINUXINO_EEPROM_ADDRESS, i, 1, data + i , 16))) {
++			printf("ERROR: Failed to write eeprom!\n");
++			return ret;
++		}
++		mdelay(5);
++	}
++
++	return 0;
++}
++
++int olinuxino_i2c_eeprom_erase(void)
++{
++	uint8_t *data = (uint8_t *)eeprom;
++	uint16_t i;
++	int ret;
++
++	/* Initialize EEPROM */
++	if ((ret = olinuxino_i2c_eeprom_init())) {
++		printf("ERROR: Failed to init eeprom!\n");
++		return ret;
++	}
++
++	/* Erase previous data */
++	memset((uint8_t *)eeprom, 0xFF, 256);
++
++	/* Write data */
++	for(i = 0; i < 256; i += 16) {
++		if ((ret = i2c_write(OLINUXINO_EEPROM_ADDRESS, i, 1, data + i, 16))) {
++			printf("ERROR: Failed to write eeprom!\n");
++			return ret;
++		}
++		mdelay(5);
++	}
++
++	return 0;
++}
++#endif /* !CONFIG_SPL_BUILD */
++#endif /* OLINUXINO_EEPROM_BUS */
++
++#if defined(OLINUXINO_MMC_SECTOR)
++int olinuxino_mmc_eeprom_read(void)
++{
++	struct mmc *mmc = NULL;
++	unsigned long count;
++	int ret = 0;
++
++	ret = mmc_initialize(NULL);
++	if (ret)
++		return ret;
++
++	mmc = find_mmc_device((sunxi_get_boot_device() == BOOT_DEVICE_MMC1) ? 0 : 1);
++	if (!mmc)
++		return -ENODEV;
++
++	ret = mmc_init(mmc);
++	if (ret)
++		return ret;
++
++	count = blk_dread(mmc_get_blk_desc(mmc), OLINUXINO_MMC_SECTOR, 1, eeprom);
++	if (!count)
++		return -EIO;
++
++	return ret;
++}
++
++#ifndef CONFIG_SPL_BUILD
++int olinuxino_mmc_eeprom_write(void)
++{
++	struct mmc *mmc = NULL;
++	unsigned long count;
++	int ret = 0;
++
++	mmc = find_mmc_device((sunxi_get_boot_device() == BOOT_DEVICE_MMC1) ? 0 : 1);
++	if (!mmc)
++		return -ENODEV;
++
++	ret = mmc_init(mmc);
++	if (ret)
++		return ret;
++
++	count = blk_dwrite(mmc_get_blk_desc(mmc), OLINUXINO_MMC_SECTOR, 1, eeprom);
++	if (!count)
++		return -EIO;
++
++	return ret;
++}
++
++int olinuxino_mmc_eeprom_erase(void)
++{
++	struct mmc *mmc = NULL;
++	unsigned long count;
++	int ret = 0;
++
++	mmc = find_mmc_device((sunxi_get_boot_device() == BOOT_DEVICE_MMC1) ? 0 : 1);
++	if (!mmc)
++		return -ENODEV;
++
++	ret = mmc_init(mmc);
++	if (ret)
++		return ret;
++
++	count = blk_derase(mmc_get_blk_desc(mmc), OLINUXINO_MMC_SECTOR, 1);
++	if (!count)
++		return -EIO;
++
++	return ret;
++
++}
++#endif /* !CONFIG_SPL_BUILD */
++#endif /* OLINUXINO_MMC_SECTOR */
++
++bool olinuxino_eeprom_is_valid(void)
++{
++	/*
++	 * If checksum during EEPROM initalization was wrong,
++	 * then the whole memory location should be empty.
++	 * Therefore it's enough to check the magic header
++	 */
++	return (eeprom->header == OLINUXINO_EEPROM_MAGIC);
++}
+diff --git a/configs/A20-OLinuXino_defconfig b/configs/A20-OLinuXino_defconfig
+new file mode 100644
+index 0000000000..a27c58aca7
+--- /dev/null
++++ b/configs/A20-OLinuXino_defconfig
+@@ -0,0 +1,70 @@
++CONFIG_ARM=y
++CONFIG_ARCH_SUNXI=y
++CONFIG_NR_DRAM_BANKS=1
++CONFIG_SPL=y
++CONFIG_MACH_SUN7I=y
++CONFIG_DRAM_CLK=384
++CONFIG_AHCI=y
++# CONFIG_SYS_MALLOC_CLEAR_ON_INIT is not set
++CONFIG_USE_PREBOOT=y
++CONFIG_SPL_I2C_SUPPORT=y
++CONFIG_CMD_DFU=y
++CONFIG_CMD_USB_MASS_STORAGE=y
++# CONFIG_SPL_DOS_PARTITION is not set
++# CONFIG_SPL_PARTITION_UUIDS is not set
++CONFIG_DEFAULT_DEVICE_TREE="sun7i-a20-olinuxino-micro"
++CONFIG_SYS_RELOC_GD_ENV_ADDR=y
++CONFIG_SCSI_AHCI=y
++CONFIG_DFU_RAM=y
++CONFIG_FASTBOOT_CMD_OEM_FORMAT=y
++CONFIG_ETH_DESIGNWARE=y
++CONFIG_RGMII=y
++CONFIG_MII=y
++CONFIG_SUN7I_GMAC=y
++CONFIG_AXP_ALDO3_VOLT=2800
++CONFIG_AXP_ALDO3_VOLT_SLOPE_08=y
++CONFIG_AXP_ALDO3_INRUSH_QUIRK=y
++CONFIG_AXP_ALDO4_VOLT=2800
++CONFIG_SCSI=y
++CONFIG_USB_EHCI_HCD=y
++CONFIG_USB_OHCI_HCD=y
++CONFIG_USB_MUSB_GADGET=y
++CONFIG_SYS_USB_EVENT_POLL_VIA_INT_QUEUE=y
++
++CONFIG_TARGET_A20_OLINUXINO=y
++CONFIG_SPL_BOARD_INIT=y
++CONFIG_BOARD_LATE_INIT=y
++CONFIG_OF_BOARD_FIXUP=y
++CONFIG_MMC_BROKEN_CD=y
++CONFIG_MULTI_DTB_FIT=y
++CONFIG_OF_LIST="sun7i-a20-olinuxino-micro sun7i-a20-olinuxino-micro-emmc sun7i-a20-olinuxino-lime sun7i-a20-olinuxino-lime-emmc sun7i-a20-olinuxino-lime2 sun7i-a20-olinuxino-lime2-emmc sun7i-a20-olimex-som-evb sun7i-a20-olimex-som-evb-emmc sun7i-a20-olimex-som204-evb sun7i-a20-olimex-som204-evb-emmc"
++
++CONFIG_CMD_SF=y
++CONFIG_CMD_SF_TEST=y
++
++CONFIG_SPI=y
++CONFIG_DM_SPI=y
++CONFIG_DM_SPI_FLASH=y
++CONFIG_SPI_FLASH=y
++CONFIG_SPI_SUNXI=y
++CONFIG_SPL_SPI_SUNXI=y
++CONFIG_SPI_FLASH_MTD=y
++CONFIG_SPI_FLASH_WINBOND=y
++CONFIG_SYS_SPI_U_BOOT_OFFS=0x8000
++
++CONFIG_ENV_FAT_DEVICE_AND_PART=""
++
++CONFIG_ENV_IS_IN_EXT4=y
++CONFIG_ENV_EXT4_INTERFACE="mmc"
++CONFIG_ENV_EXT4_DEVICE_AND_PART=""
++CONFIG_ENV_EXT4_FILE="/uboot.env"
++
++CONFIG_ENV_IS_IN_SPI_FLASH=y
++CONFIG_SYS_REDUNDAND_ENVIRONMENT=y
++CONFIG_ENV_OFFSET=0x200000
++CONFIG_ENV_OFFSET_REDUND=0x220000
++CONFIG_ENV_SIZE=0x20000
++CONFIG_ENV_SECT_SIZE=0x20000
++
++CONFIG_VIDEO_LCD_PANEL_OLINUXINO=y
++CONFIG_VIDEO_LCD_DCLK_PHASE-0
+diff --git a/configs/A64-OLinuXino_defconfig b/configs/A64-OLinuXino_defconfig
+new file mode 100644
+index 0000000000..9fa289da35
+--- /dev/null
++++ b/configs/A64-OLinuXino_defconfig
+@@ -0,0 +1,50 @@
++CONFIG_ARM=y
++CONFIG_ARCH_SUNXI=y
++CONFIG_NR_DRAM_BANKS=1
++CONFIG_SPL=y
++CONFIG_SPL_BOARD_INIT=y
++CONFIG_MACH_SUN50I=y
++CONFIG_TARGET_A64_OLINUXINO=y
++CONFIG_RESERVE_ALLWINNER_BOOT0_HEADER=y
++CONFIG_MMC_SUNXI_SLOT_EXTRA=2
++# CONFIG_SYS_MALLOC_CLEAR_ON_INIT is not set
++CONFIG_USE_PREBOOT=y
++# CONFIG_CMD_FLASH is not set
++# CONFIG_SPL_DOS_PARTITION is not set
++# CONFIG_SPL_EFI_PARTITION is not set
++CONFIG_OF_BOARD_FIXUP=y
++CONFIG_DEFAULT_DEVICE_TREE="sun50i-a64-olinuxino"
++CONFIG_SUN8I_EMAC=y
++CONFIG_USB_EHCI_HCD=y
++CONFIG_USB_OHCI_HCD=y
++CONFIG_SYS_USB_EVENT_POLL_VIA_INT_QUEUE=y
++# CONFIG_ENV_IS_IN_FAT is not set
++CONFIG_ENV_IS_IN_EXT4=y
++CONFIG_ENV_EXT4_INTERFACE="mmc"
++CONFIG_ENV_EXT4_DEVICE_AND_PART="0:auto"
++CONFIG_ENV_EXT4_FILE="/uboot.env"
++CONFIG_SPI=y
++CONFIG_DM_SPI=y
++CONFIG_SPI_SUNXI=y
++CONFIG_SPL_SPI_SUNXI=y
++CONFIG_CMD_SF=y
++CONFIG_CMD_SF_TEST=y
++CONFIG_DM_SPI_FLASH=y
++CONFIG_SPI_FLASH=y
++CONFIG_SPI_FLASH_WINBOND=y
++CONFIG_SPI_FLASH_MTD=y
++CONFIG_DISPLAY_BOARDINFO=y
++CONFIG_FIT_BEST_MATCH=y
++
++CONFIG_VIDEO_BPP8=y
++CONFIG_VIDEO_BPP16=y
++CONFIG_VIDEO_BPP32=y
++CONFIG_VIDEO_ANSI=y
++CONFIG_LAST_STAGE_INIT=y
++
++CONFIG_CMD_I2C=y
++
++CONFIG_USB_MUSB_GADGET=y
++CONFIG_USB_GADGET_DOWNLOAD=y
++CONFIG_CMD_USB_MASS_STORAGE=y
++CONFIG_USB_MUSB_PIO_ONLY=y
+diff --git a/drivers/video/sunxi/lcdc.c b/drivers/video/sunxi/lcdc.c
+index 4cf3a0eb75..eacd44b20f 100644
+--- a/drivers/video/sunxi/lcdc.c
++++ b/drivers/video/sunxi/lcdc.c
+@@ -13,6 +13,8 @@
+ #include <asm/arch/lcdc.h>
+ #include <asm/io.h>
+ 
++#include <olimex/lcd_olinuxino.h>
++
+ static int lcdc_get_clk_delay(const struct display_timing *mode, int tcon)
+ {
+ 	int delay;
+@@ -41,10 +43,10 @@ void lcdc_init(struct sunxi_lcdc_reg * const lcdc)
+ 	writel(0xffffffff, &lcdc->tcon1_io_tristate);
+ }
+ 
+-void lcdc_enable(struct sunxi_lcdc_reg * const lcdc, int depth)
++#if defined(CONFIG_VIDEO_LCD_IF_LVDS) || \
++    defined(CONFIG_VIDEO_LCD_OLINUXINO)
++static void lcdc_enable_lvds(struct sunxi_lcdc_reg * const lcdc, int depth)
+ {
+-	setbits_le32(&lcdc->ctrl, SUNXI_LCDC_CTRL_TCON_ENABLE);
+-#ifdef CONFIG_VIDEO_LCD_IF_LVDS
+ 	setbits_le32(&lcdc->tcon0_lvds_intf, SUNXI_LCDC_TCON0_LVDS_INTF_ENABLE);
+ 	setbits_le32(&lcdc->lvds_ana0, SUNXI_LCDC_LVDS_ANA0);
+ #ifdef CONFIG_SUNXI_GEN_SUN6I
+@@ -64,7 +66,20 @@ void lcdc_enable(struct sunxi_lcdc_reg * const lcdc, int depth)
+ 	setbits_le32(&lcdc->lvds_ana1, SUNXI_LCDC_LVDS_ANA1_INIT2);
+ 	setbits_le32(&lcdc->lvds_ana0, SUNXI_LCDC_LVDS_ANA0_UPDATE);
+ #endif
++}
++#endif /* CONFIG_VIDEO_LCD_IF_LVDS || CONFIG_VIDEO_LCD_OLINUXINO */
++
++void lcdc_enable(struct sunxi_lcdc_reg * const lcdc, int depth)
++{
++	setbits_le32(&lcdc->ctrl, SUNXI_LCDC_CTRL_TCON_ENABLE);
++#ifdef CONFIG_VIDEO_LCD_OLINUXINO
++	if (lcd_olinuxino_interface() == LCD_OLINUXINO_IF_LVDS)
++		lcdc_enable_lvds(lcdc, depth);
++#else
++#ifdef CONFIG_VIDEO_LCD_IF_LVDS
++	lcdc_enable_lvds(lcdc, depth);
+ #endif
++#endif /* CONFIG_VIDEO_LCD_OLINUXINO */
+ }
+ 
+ void lcdc_tcon0_mode_set(struct sunxi_lcdc_reg * const lcdc,
+@@ -73,6 +88,10 @@ void lcdc_tcon0_mode_set(struct sunxi_lcdc_reg * const lcdc,
+ 			 int depth, int dclk_phase)
+ {
+ 	int bp, clk_delay, total, val;
++#ifdef CONFIG_VIDEO_LCD_OLINUXINO
++	struct lcd_olinuxino_board *lcd = lcd_olinuxino_get_data();
++	int ch = 0;
++#endif
+ 
+ #ifndef CONFIG_SUNXI_DE2
+ 	/* Use tcon0 */
+@@ -100,6 +119,24 @@ void lcdc_tcon0_mode_set(struct sunxi_lcdc_reg * const lcdc,
+ 	writel(SUNXI_LCDC_TCON0_TIMING_V_TOTAL(total) |
+ 	       SUNXI_LCDC_TCON0_TIMING_V_BP(bp), &lcdc->tcon0_timing_v);
+ 
++#ifdef CONFIG_VIDEO_LCD_OLINUXINO
++	if (lcd_olinuxino_interface() == LCD_OLINUXINO_IF_PARALLEL) {
++		writel(SUNXI_LCDC_X(mode->hsync_len.typ) |
++		       SUNXI_LCDC_Y(mode->vsync_len.typ),
++		       &lcdc->tcon0_timing_sync);
++
++		writel(0, &lcdc->tcon0_hv_intf);
++		writel(0, &lcdc->tcon0_cpu_intf);
++	} else {
++		val = (depth == 18) ? 1 : 0;
++		if (lcd->id == 7894)
++			ch = 1;
++		writel(SUNXI_LCDC_TCON0_LVDS_INTF_CH(ch) |
++		       SUNXI_LCDC_TCON0_LVDS_INTF_BITWIDTH(val) |
++		       SUNXI_LCDC_TCON0_LVDS_CLK_SEL_TCON0,
++		       &lcdc->tcon0_lvds_intf);
++	}
++#else
+ #if defined(CONFIG_VIDEO_LCD_IF_PARALLEL) || defined(CONFIG_VIDEO_DE2)
+ 	writel(SUNXI_LCDC_X(mode->hsync_len.typ) |
+ 	       SUNXI_LCDC_Y(mode->vsync_len.typ), &lcdc->tcon0_timing_sync);
+@@ -112,6 +149,7 @@ void lcdc_tcon0_mode_set(struct sunxi_lcdc_reg * const lcdc,
+ 	writel(SUNXI_LCDC_TCON0_LVDS_INTF_BITWIDTH(val) |
+ 	       SUNXI_LCDC_TCON0_LVDS_CLK_SEL_TCON0, &lcdc->tcon0_lvds_intf);
+ #endif
++#endif /* CONFIG_VIDEO_LCD_OLINUXINO */
+ 
+ 	if (depth == 18 || depth == 16) {
+ 		writel(SUNXI_LCDC_TCON0_FRM_SEED, &lcdc->tcon0_frm_seed[0]);
+@@ -223,6 +261,15 @@ void lcdc_pll_set(struct sunxi_ccm_reg *ccm, int tcon, int dotclock,
+ #endif
+ 
+ 	if (tcon == 0) {
++#ifdef CONFIG_VIDEO_LCD_OLINUXINO
++	if (lcd_olinuxino_interface() == LCD_OLINUXINO_IF_PARALLEL) {
++		min_m = 6;
++		max_m = 127;
++	} else {
++		min_m = 7;
++		max_m = 7;
++	}
++#else
+ #if defined(CONFIG_VIDEO_LCD_IF_PARALLEL) || defined(CONFIG_SUNXI_DE2)
+ 		min_m = 6;
+ 		max_m = 127;
+@@ -231,6 +278,7 @@ void lcdc_pll_set(struct sunxi_ccm_reg *ccm, int tcon, int dotclock,
+ 		min_m = 7;
+ 		max_m = 7;
+ #endif
++#endif /* CONFIG_VIDEO_LCD_OLINUXINO */
+ 	} else {
+ 		min_m = 1;
+ 		max_m = 15;
+@@ -275,7 +323,16 @@ void lcdc_pll_set(struct sunxi_ccm_reg *ccm, int tcon, int dotclock,
+ 		}
+ 	}
+ 
+-#ifdef CONFIG_MACH_SUN6I
++#ifndef CONFIG_MACH_SUN6I
++	/*
++	 * If there is no match, set highest possible and drop the refresh rate.
++	 */
++	if (!tcon && !best_n) {
++		best_double = 1;
++		best_n = 127;
++		best_m = 7;
++	}
++#else
+ 	/*
+ 	 * Use the MIPI pll if we've been unable to find any matching setting
+ 	 * for PLL3, this happens with high dotclocks because of min_m = 6.
+diff --git a/drivers/video/sunxi/sunxi_display.c b/drivers/video/sunxi/sunxi_display.c
+index 31f0aa7ddc..c9293d1255 100644
+--- a/drivers/video/sunxi/sunxi_display.c
++++ b/drivers/video/sunxi/sunxi_display.c
+@@ -34,6 +34,12 @@
+ #include "../ssd2828.h"
+ #include "simplefb_common.h"
+ 
++#ifdef CONFIG_VIDEO_LCD_OLINUXINO
++#include <olimex/boards.h>
++#include <olimex/lcd_olinuxino.h>
++#include <olimex/sys_eeprom.h>
++#endif
++
+ #ifdef CONFIG_VIDEO_LCD_BL_PWM_ACTIVE_LOW
+ #define PWM_ON 0
+ #define PWM_OFF 1
+@@ -537,6 +543,14 @@ static void sunxi_lcdc_init(void)
+ 
+ 	/* Clock on */
+ 	setbits_le32(&ccm->ahb_gate1, 1 << AHB_GATE_OFFSET_LCD0);
++#ifdef CONFIG_VIDEO_LCD_OLINUXINO
++	if (lcd_olinuxino_interface() == LCD_OLINUXINO_IF_LVDS)
++#ifdef CONFIG_SUNXI_GEN_SUN6I
++		setbits_le32(&ccm->ahb_reset2_cfg, 1 << AHB_RESET_OFFSET_LVDS);
++#else
++		setbits_le32(&ccm->lvds_clk_cfg, CCM_LVDS_CTRL_RST);
++#endif
++#else
+ #ifdef CONFIG_VIDEO_LCD_IF_LVDS
+ #ifdef CONFIG_SUNXI_GEN_SUN6I
+ 	setbits_le32(&ccm->ahb_reset2_cfg, 1 << AHB_RESET_OFFSET_LVDS);
+@@ -544,12 +558,16 @@ static void sunxi_lcdc_init(void)
+ 	setbits_le32(&ccm->lvds_clk_cfg, CCM_LVDS_CTRL_RST);
+ #endif
+ #endif
++#endif /* CONFIG_VIDEO_LCD_OLINUXINO */
+ 
+ 	lcdc_init(lcdc);
+ }
+ 
+ static void sunxi_lcdc_panel_enable(void)
+ {
++#ifdef CONFIG_VIDEO_LCD_OLINUXINO
++	struct lcd_olinuxino_board *lcd = lcd_olinuxino_get_data();
++#endif
+ 	int pin, reset_pin;
+ 
+ 	/*
+@@ -562,6 +580,19 @@ static void sunxi_lcdc_panel_enable(void)
+ 		gpio_direction_output(pin, 0);
+ 	}
+ 
++#ifdef CONFIG_VIDEO_LCD_OLINUXINO
++	pin = sunxi_name_to_gpio(olinuxino_get_lcd_pwm_pin());
++	if (pin >= 0) {
++		gpio_request(pin, "lcd_backlight_pwm");
++
++		if (lcd->id == 7894)
++			gpio_direction_output(pin, 0);
++		else
++			gpio_direction_output(pin, 1);
++	}
++
++	reset_pin = -1;
++#else
+ 	pin = sunxi_name_to_gpio(CONFIG_VIDEO_LCD_BL_PWM);
+ 	if (pin >= 0) {
+ 		gpio_request(pin, "lcd_backlight_pwm");
+@@ -573,10 +604,15 @@ static void sunxi_lcdc_panel_enable(void)
+ 		gpio_request(reset_pin, "lcd_reset");
+ 		gpio_direction_output(reset_pin, 0); /* Assert reset */
+ 	}
++#endif /* CONFIG_VIDEO_LCD_OLINUXINO */
+ 
+ 	/* Give the backlight some time to turn off and power up the panel. */
+ 	mdelay(40);
++#ifdef CONFIG_VIDEO_LCD_OLINUXINO
++	pin = sunxi_name_to_gpio(olinuxino_get_lcd_pwr_pin());
++#else
+ 	pin = sunxi_name_to_gpio(CONFIG_VIDEO_LCD_POWER);
++#endif /* CONFIG_VIDEO_LCD_OLINUXINO */
+ 	if (pin >= 0) {
+ 		gpio_request(pin, "lcd_power");
+ 		gpio_direction_output(pin, 1);
+@@ -589,6 +625,9 @@ static void sunxi_lcdc_panel_enable(void)
+ static void sunxi_lcdc_backlight_enable(void)
+ {
+ 	int pin;
++#ifdef CONFIG_VIDEO_LCD_OLINUXINO
++	struct lcd_olinuxino_board *lcd = lcd_olinuxino_get_data();
++#endif /* CONFIG_VIDEO_LCD_OLINUXINO */
+ 
+ 	/*
+ 	 * We want to have scanned out at least one frame before enabling the
+@@ -596,6 +635,15 @@ static void sunxi_lcdc_backlight_enable(void)
+ 	 */
+ 	mdelay(40);
+ 
++#ifdef CONFIG_VIDEO_LCD_OLINUXINO
++	pin = sunxi_name_to_gpio(olinuxino_get_lcd_pwm_pin());
++	if (pin >= 0) {
++		if (lcd->id == 7894)
++			gpio_direction_output(pin, 1);
++		else
++			gpio_direction_output(pin, 0);
++	}
++#else
+ 	pin = sunxi_name_to_gpio(CONFIG_VIDEO_LCD_BL_EN);
+ 	if (pin >= 0)
+ 		gpio_direction_output(pin, 1);
+@@ -613,6 +661,7 @@ static void sunxi_lcdc_backlight_enable(void)
+ #endif
+ 	if (pin >= 0)
+ 		gpio_direction_output(pin, PWM_ON);
++#endif /* CONFIG_VIDEO_LCD_OLINUXINO */
+ }
+ 
+ static void sunxi_ctfb_mode_to_display_timing(const struct ctfb_res_modes *mode,
+@@ -654,6 +703,16 @@ static void sunxi_lcdc_tcon0_mode_set(const struct ctfb_res_modes *mode,
+ 	int clk_div, clk_double, pin;
+ 	struct display_timing timing;
+ 
++
++#ifdef CONFIG_VIDEO_LCD_OLINUXINO
++	if (lcd_olinuxino_interface() == LCD_OLINUXINO_IF_PARALLEL) {
++		for (pin = SUNXI_GPD(0); pin <= SUNXI_GPD(27); pin++)
++			sunxi_gpio_set_cfgpin(pin, SUNXI_GPD_LCD0);
++	} else {
++		for (pin = SUNXI_GPD(0); pin <= SUNXI_GPD(19); pin++)
++			sunxi_gpio_set_cfgpin(pin, SUNXI_GPD_LVDS0);
++	}
++#else
+ #if defined CONFIG_MACH_SUN8I && defined CONFIG_VIDEO_LCD_IF_LVDS
+ 	for (pin = SUNXI_GPD(18); pin <= SUNXI_GPD(27); pin++) {
+ #else
+@@ -669,7 +728,7 @@ static void sunxi_lcdc_tcon0_mode_set(const struct ctfb_res_modes *mode,
+ 		sunxi_gpio_set_drv(pin, 3);
+ #endif
+ 	}
+-
++#endif /* CONFIG_VIDEO_LCD_OLINUXINO */
+ 	lcdc_pll_set(ccm, 0, mode->pixclock_khz, &clk_div, &clk_double,
+ 		     sunxi_is_composite());
+ 
+@@ -1043,9 +1102,13 @@ static bool sunxi_has_hdmi(void)
+ 
+ static bool sunxi_has_lcd(void)
+ {
++#ifdef CONFIG_VIDEO_LCD_OLINUXINO
++	return lcd_olinuxino_is_present();
++#else
+ 	char *lcd_mode = CONFIG_VIDEO_LCD_MODE;
+ 
+ 	return lcd_mode[0] != 0;
++#endif /* CONFIG_VIDEO_LCD_OLINUXINO */
+ }
+ 
+ static bool sunxi_has_vga(void)
+@@ -1093,7 +1156,11 @@ void *video_hw_init(void)
+ 	int i, overscan_offset, overscan_x, overscan_y;
+ 	unsigned int fb_dma_addr;
+ 	char mon[16];
++#ifdef CONFIG_VIDEO_LCD_OLINUXINO
++	char *lcd_mode = lcd_olinuxino_video_mode();
++#else
+ 	char *lcd_mode = CONFIG_VIDEO_LCD_MODE;
++#endif /* CONFIG_VIDEO_LCD_OLINUXINO */
+ 
+ 	memset(&sunxi_display, 0, sizeof(struct sunxi_display));
+ 
+@@ -1127,6 +1194,7 @@ void *video_hw_init(void)
+ 		hdmi_present = (sunxi_hdmi_hpd_detect(hpd_delay) == 1);
+ 		if (hdmi_present && edid) {
+ 			printf("HDMI connected: ");
++			env_set("monitor", "hdmi");
+ 			if (sunxi_hdmi_edid_get_mode(&custom, true) == 0)
+ 				mode = &custom;
+ 			else
+@@ -1143,6 +1211,7 @@ void *video_hw_init(void)
+ 		if ((hpd || edid) && !hdmi_present) {
+ 			sunxi_hdmi_shutdown();
+ 			sunxi_display.monitor = sunxi_get_default_mon(false);
++			env_set("monitor", "none");
+ 		} /* else continue with hdmi/dvi without a cable connected */
+ 	}
+ #endif
+@@ -1166,6 +1235,7 @@ void *video_hw_init(void)
+ 		}
+ 		sunxi_display.depth = video_get_params(&custom, lcd_mode);
+ 		mode = &custom;
++		env_set("monitor", "lcd");
+ 		break;
+ 	case sunxi_monitor_vga:
+ 		if (!sunxi_has_vga()) {
+diff --git a/drivers/video/sunxi/sunxi_lcd.c b/drivers/video/sunxi/sunxi_lcd.c
+index 619f5892f5..0cb11b54b7 100644
+--- a/drivers/video/sunxi/sunxi_lcd.c
++++ b/drivers/video/sunxi/sunxi_lcd.c
+@@ -17,6 +17,8 @@
+ #include <asm/arch/gpio.h>
+ #include <asm/gpio.h>
+ 
++#include <olimex/lcd_olinuxino.h>
++
+ struct sunxi_lcd_priv {
+ 	struct display_timing timing;
+ 	int panel_bpp;
+@@ -77,10 +79,12 @@ static int sunxi_lcd_read_timing(struct udevice *dev,
+ 
+ static int sunxi_lcd_probe(struct udevice *dev)
+ {
+-	struct udevice *cdev;
+ 	struct sunxi_lcd_priv *priv = dev_get_priv(dev);
++#ifndef CONFIG_VIDEO_LCD_OLINUXINO
++	struct udevice *cdev;
+ 	int ret;
+ 	int node, timing_node, val;
++#endif /* !CONFIG_VIDEO_LCD_OLINUXINO */
+ 
+ #ifdef CONFIG_VIDEO_BRIDGE
+ 	/* Try to get timings from bridge first */
+@@ -105,6 +109,16 @@ static int sunxi_lcd_probe(struct udevice *dev)
+ 	}
+ #endif
+ 
++#ifdef CONFIG_VIDEO_LCD_OLINUXINO
++	if (olinuxino_phy_rst_pin())
++		return -ENODEV;
++
++	if (lcd_olinuxino_display_timing(&priv->timing)) {
++		debug("%s: Failed to get display timing\n", __func__);
++		return -ENODEV;
++	}
++	priv->panel_bpp = 18;
++#else
+ 	/* Fallback to timings from DT if there's no bridge or
+ 	 * if reading EDID failed
+ 	 */
+@@ -127,6 +141,7 @@ static int sunxi_lcd_probe(struct udevice *dev)
+ 		priv->panel_bpp = val;
+ 	else
+ 		priv->panel_bpp = 18;
++#endif /* CONFIG_VIDEO_LCD_OLINUXINO */
+ 
+ 	return 0;
+ }
+diff --git a/env/fat.c b/env/fat.c
+index 1836556f36..4d533f7b68 100644
+--- a/env/fat.c
++++ b/env/fat.c
+@@ -31,6 +31,11 @@
+ # endif
+ #endif
+ 
++__weak const char *env_fat_get_dev_part(void)
++{
++	return (const char *)CONFIG_ENV_FAT_DEVICE_AND_PART;
++}
++
+ #ifdef CMD_SAVEENV
+ static int env_fat_save(void)
+ {
+@@ -40,13 +45,14 @@ static int env_fat_save(void)
+ 	int dev, part;
+ 	int err;
+ 	loff_t size;
++	const char *dev_and_part = env_fat_get_dev_part();
+ 
+ 	err = env_export(&env_new);
+ 	if (err)
+ 		return err;
+ 
+ 	part = blk_get_device_part_str(CONFIG_ENV_FAT_INTERFACE,
+-					CONFIG_ENV_FAT_DEVICE_AND_PART,
++					dev_and_part,
+ 					&dev_desc, &info, 1);
+ 	if (part < 0)
+ 		return 1;
+@@ -86,6 +92,7 @@ static int env_fat_load(void)
+ 	disk_partition_t info;
+ 	int dev, part;
+ 	int err;
++	const char *dev_and_part = env_fat_get_dev_part();
+ 
+ #ifdef CONFIG_MMC
+ 	if (!strcmp(CONFIG_ENV_FAT_INTERFACE, "mmc"))
+@@ -93,7 +100,7 @@ static int env_fat_load(void)
+ #endif
+ 
+ 	part = blk_get_device_part_str(CONFIG_ENV_FAT_INTERFACE,
+-					CONFIG_ENV_FAT_DEVICE_AND_PART,
++					dev_and_part,
+ 					&dev_desc, &info, 1);
+ 	if (part < 0)
+ 		goto err_env_relocate;
+diff --git a/include/configs/a20_olinuxino.h b/include/configs/a20_olinuxino.h
+new file mode 100644
+index 0000000000..7348c573fb
+--- /dev/null
++++ b/include/configs/a20_olinuxino.h
+@@ -0,0 +1,20 @@
++/*
++ * Copyright (C) 2020 Olimex Ltd.
++ *   Author: Stefan Mavrodiev <stefan@olimex.com>
++ *
++ * SPDX-License-Identifier: (GPL-2.0+ OR MIT)
++ */
++#ifndef __A20_OLINUXINO_H
++#include <configs/sun7i.h>
++
++#define OLINUXINO_EEPROM_BUS		I2C_1
++#define OLINUXINO_EEPROM_ADDRESS	0x50
++/**
++ * If the board has corrupted EEPROM (or it's very old without one)
++ * the booted MMC can be used as a backup storage.
++ */
++#define OLINUXINO_MMC_SECTOR		15
++
++#define LCD_OLINUXINO_EEPROM_BUS	I2C_2
++#define LCD_OLINUXINO_EEPROM_ADDRESS	0x50
++#endif /* __A20_OLINUXINO_H */
+diff --git a/include/configs/a64_olinuxino.h b/include/configs/a64_olinuxino.h
+new file mode 100644
+index 0000000000..5718643f61
+--- /dev/null
++++ b/include/configs/a64_olinuxino.h
+@@ -0,0 +1,12 @@
++/*
++ * Copyright (C) 2020 Olimex Ltd.
++ *   Author: Stefan Mavrodiev <stefan@olimex.com>
++ *
++ * SPDX-License-Identifier: (GPL-2.0+ OR MIT)
++ */
++#ifndef __A64_OLINUXINO_H
++#include <configs/sun50i.h>
++
++#define LCD_OLINUXINO_EEPROM_BUS	0
++#define LCD_OLINUXINO_EEPROM_ADDRESS	0x50
++#endif /* __A64_OLINUXINO_H */
+diff --git a/include/olimex/boards.h b/include/olimex/boards.h
+new file mode 100644
+index 0000000000..56ae407460
+--- /dev/null
++++ b/include/olimex/boards.h
+@@ -0,0 +1,115 @@
++/*
++ * SPDX-License-Identifier: (GPL-2.0+ OR MIT)
++ *
++ * List of all supported devices
++ *
++ * Copyright (C) 2019 Olimex Ltd.
++ *   Author: Stefan Mavrodiev <stefan@olimex.com>
++ */
++#ifndef __BOARDS_H
++#define __BOARDS_H
++
++enum olinuxino_storage {
++	STORAGE_NONE = 0,
++	STORAGE_EMMC = 'e',
++	STORAGE_NAND = 'n',
++	STORAGE_SPI = 's'
++};
++
++enum olinuxino_grade {
++	GRADE_COM = 0,
++	GRADE_IND = 1,
++};
++
++enum olinuxino_sizes {
++	S_1 = 0, S_2, S_4, S_8, S_16, S_32, S_64, S_128, S_256, S_512
++};
++
++#if defined(CONFIG_TARGET_A20_OLINUXINO)
++enum olinuxino_family {
++	OLINUXINO_UNKNOWN = 0,
++	OLINUXINO_MICRO,
++	OLINUXINO_LIME,
++	OLINUXINO_LIME2,
++	OLINUXINO_SOM,
++	OLINUXINO_SOM204,
++};
++
++enum olinuxino_phy_mode {
++	OLINUXINO_PHY_MODE_RGMII = 0,
++	OLINUXINO_PHY_MODE_MII,
++	OLINUXINO_PHY_MODE_UNKNOWN,
++};
++#endif
++
++#define BYTES(a)	(S_##a )
++#define KBYTES(a)	(S_##a + 10)
++#define MBYTES(a)	(S_##a + 20)
++#define GBYTES(a)	(S_##a + 30)
++
++#define OLINUXINO_CONFIG(_storage, _size, _ram, _grade) \
++	.config = { STORAGE_##_storage, _size, _ram, GRADE_##_grade },
++
++#define OLINUXINO_BOARD(_id, _name, _fdt) \
++	.id = _id, \
++	.name = _name, \
++	.fdt = _fdt,
++
++#if defined(CONFIG_TARGET_A20_OLINUXINO)
++#define OLINUXINO_BOARD_FAMILY(_id, _name, _fdt, _family) \
++	OLINUXINO_BOARD(_id, _name, _fdt) \
++	.family = _family,
++
++#define OLINUXINO_BOARD_MICRO(_id, _name, _fdt) \
++	OLINUXINO_BOARD_FAMILY(_id, _name, _fdt, OLINUXINO_MICRO)
++
++#define OLINUXINO_BOARD_LIME(_id, _name, _fdt) \
++	OLINUXINO_BOARD_FAMILY(_id, _name, _fdt, OLINUXINO_LIME)
++
++#define OLINUXINO_BOARD_LIME2(_id, _name, _fdt) \
++	OLINUXINO_BOARD_FAMILY(_id, _name, _fdt, OLINUXINO_LIME2)
++
++#define OLINUXINO_BOARD_SOM(_id, _name, _fdt) \
++	OLINUXINO_BOARD_FAMILY(_id, _name, _fdt, OLINUXINO_SOM)
++
++#define OLINUXINO_BOARD_SOM204(_id, _name, _fdt) \
++	OLINUXINO_BOARD_FAMILY(_id, _name, _fdt, OLINUXINO_SOM204)
++#endif
++
++
++struct olinuxino_boards {
++	uint32_t id;
++	const char name[32];
++	const char fdt[32];
++#if defined(CONFIG_TARGET_A20_OLINUXINO)
++	enum olinuxino_family family;
++#endif
++	uint8_t config[4];
++};
++
++extern struct olinuxino_boards olinuxino_boards[];
++
++const char *olinuxino_get_board_name(void);
++void olinuxino_get_board_revision(char *data);
++void olinuxino_get_board_mac(char *data);
++const char *olinuxino_get_board_fdt(void);
++bool olinuxino_board_has_spi(void);
++
++#if defined(CONFIG_TARGET_A20_OLINUXINO)
++enum olinuxino_family olinuxino_get_board_family(void);
++enum olinuxino_phy_mode olinuxino_get_phy_mode(void);
++uint8_t olinuxino_phy_txdelay(void);
++#endif
++
++#if defined(CONFIG_TARGET_A64_OLINUXINO)
++uint8_t olinuxino_phy_rst_pin(void);
++#endif
++
++#ifdef CONFIG_VIDEO_LCD_OLINUXINO
++const char *olinuxino_get_lcd_pwm_pin(void);
++const char *olinuxino_get_lcd_pwr_pin(void);
++const char *olinuxino_get_lcd_irq_pin(void);
++const char *olinuxino_get_lcd_rst_pin(void);
++#endif
++
++#endif /* __BOARDS_H */
+diff --git a/include/olimex/lcd_olinuxino.h b/include/olimex/lcd_olinuxino.h
+new file mode 100644
+index 0000000000..3ef9c4d283
+--- /dev/null
++++ b/include/olimex/lcd_olinuxino.h
+@@ -0,0 +1,79 @@
++/* SPDX-License-Identifier: GPL-2.0+ */
++/*
++ * Copyright (c) 2019 Olimex Ltd.
++ *   Author: Stefan Mavrodiev <stefan@olimex.com>
++ */
++
++#ifndef __LCD_OLINUXINO_H
++#define __LCD_OLINUXINO_H
++
++#define LCD_OLINUXINO_EEPROM_ADDRESS	0x50
++#define LCD_OLINUXINO_HEADER_MAGIC	0x4F4CB727
++#define LCD_OLINUXINO_DATA_LEN		256
++
++#define MEDIA_BUS_FMT_RGB666_1X18	0x1009
++#define MEDIA_BUS_FMT_RGB888_1X24	0x100a
++
++#define LCD_OLINUXINO_IF_PARALLEL	0
++#define LCD_OLINUXINO_IF_LVDS		1
++
++struct lcd_olinuxino_mode {
++	u32 pixelclock;
++	u32 hactive;
++	u32 hfp;
++	u32 hbp;
++	u32 hpw;
++	u32 vactive;
++	u32 vfp;
++	u32 vbp;
++	u32 vpw;
++	u32 refresh;
++	u32 flags;
++};
++
++struct lcd_olinuxino_info {
++	char name[32];
++	u32 width_mm;
++	u32 height_mm;
++	u32 bpc;
++	u32 bus_format;
++	u32 bus_flag;
++} __attribute__((__packed__));
++
++struct lcd_olinuxino_eeprom {
++	u32 header;
++	u32 id;
++	char revision[4];
++	u32 serial;
++	struct lcd_olinuxino_info info;
++	u32 num_modes;
++	u8 reserved[180];
++	u32 checksum;
++} __attribute__((__packed__));
++
++extern struct lcd_olinuxino_eeprom lcd_olinuxino_eeprom;
++
++struct lcd_olinuxino_board {
++	uint32_t id;
++	char compatible[32];
++	struct lcd_olinuxino_info info;
++	struct lcd_olinuxino_mode mode;
++};
++
++extern struct lcd_olinuxino_board lcd_olinuxino_boards[];
++
++bool lcd_olinuxino_is_present(void);
++
++#ifdef CONFIG_VIDEO_SUNXI
++char * lcd_olinuxino_video_mode(void);
++#endif
++
++#ifdef CONFIG_VIDEO_DE2
++int lcd_olinuxino_display_timing(struct display_timing *dt);
++#endif
++
++uint32_t lcd_olinuxino_id(void);
++uint8_t lcd_olinuxino_interface(void);
++struct lcd_olinuxino_board * lcd_olinuxino_get_data(void);
++
++#endif /* __LCD_OLINUXINO_H */
+diff --git a/include/olimex/sys_eeprom.h b/include/olimex/sys_eeprom.h
+new file mode 100644
+index 0000000000..a0429e454c
+--- /dev/null
++++ b/include/olimex/sys_eeprom.h
+@@ -0,0 +1,60 @@
++/*
++ * SPDX-License-Identifier: (GPL-2.0+ OR MIT)
++ *
++ * Copyright (C) 2019 Olimex Ltd.
++ *   Author: Stefan Mavrodiev <stefan@olimex.com>
++ */
++#ifndef __SYS_EEPROM_H
++#define __SYS_EEPROM_H
++
++/**
++ * Location in the RAM.
++ * Content should be transfered after relocation
++ */
++#define OLINUXINO_EEPROM_DATA ((struct olinuxino_eeprom *)(CONFIG_SYS_SDRAM_BASE))
++extern struct olinuxino_eeprom *eeprom;
++
++/**
++ * The content of has magic header
++ */
++#define OLINUXINO_EEPROM_MAGIC		0x4f4caa55
++
++/**
++ * Define eeprom structure
++ */
++struct olinuxino_eeprom {
++	uint32_t header;
++	uint32_t id;
++	struct {
++		char major;
++		char minor;
++	} revision;
++	uint32_t serial;
++	struct {
++		uint8_t storage;
++		uint8_t size;
++		uint8_t ram;
++		uint8_t grade;
++	} config;
++	char mac[12];
++	uint8_t reserved[222];
++	uint32_t crc;
++} __attribute__ ((__packed__));
++
++#if defined(OLINUXINO_EEPROM_BUS)
++/* I2C access functions */
++int olinuxino_i2c_eeprom_read(void);
++int olinuxino_i2c_eeprom_write(void);
++int olinuxino_i2c_eeprom_erase(void);
++#endif
++
++#if defined(OLINUXINO_MMC_SECTOR)
++/* Raw MMC access function */
++int olinuxino_mmc_eeprom_read(void);
++int olinuxino_mmc_eeprom_write(void);
++int olinuxino_mmc_eeprom_erase(void);
++#endif
++
++bool olinuxino_eeprom_is_valid(void);
++
++#endif	/* __SYS_EEPROM_H */
