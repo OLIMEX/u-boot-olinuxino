@@ -89,4 +89,6 @@ deploy:
    - /^debian/
   stage: deploy
   script:
+    - echo "Not implemented yet"
     - dpkg -I ../u-boot-olinuxino_*.deb
+  when: manual
