@@ -46,13 +46,18 @@ build-targets:
 		$(MAKE) V=$(VERBOSE) $(DEB_UBOOT_FLAGS) O=$$builddir all; \
 		for target in $$targets; do \
 			chmod -x $$builddir/$$target; \
-			echo $$builddir/$$target /usr/lib/u-boot/$$platform/ \
+			echo $$builddir/$$target /usr/lib/u-boot-olinuxino/$$platform/ \
 				>> debian/build/targets; \
 		done ; \
 		cp $$builddir/.config $$builddir/config.$$platform; \
 		echo $$builddir/config.$$platform /usr/share/doc/u-boot-olinuxino/configs/ \
 			>> debian/build/targets; \
+		./scripts/get_default_envs.sh | $$builddir/tools/mkenvimage -s 16384 -o $$builddir/uboot.env; \
+		echo $$builddir/uboot.env /usr/lib/u-boot-olinuxino/$$platform/ \
+			>> debian/build/targets; \
 	done
+
+override_dh_auto_test:
 
 override_dh_clean:
 	rm -rf debian/build/

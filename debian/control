@@ -16,7 +16,7 @@ Build-Depends:
  python3:any [linux-any],
  python3-distutils [linux-any],
  swig [linux-any],
- lzop [armhf]
+ lzop [armhf] <!cross> | lzop:native [armhf] <cross>,
 Build-Depends-Indep:
 Rules-Requires-Root: no
 Standards-Version: 4.4.1

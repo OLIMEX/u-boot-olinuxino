@@ -1,2 +1,4 @@
 add-debian-revision-to-u-boot-version.patch
 libfdt_fix_relative_path_length.patch
+add_olinuxino_lime_emmc_dtb.patch
+olinuxino_support.patch
