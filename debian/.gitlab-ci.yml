@@ -16,7 +16,7 @@ stages:
 
 .import_gpg_key: &import_gpg_key
   - gpg --no-tty --batch --yes --import $SIGN_KEY
-  - echo "" | gpg2 --pinentry-mode loopback --passphrase $GPG_PASS --sign -u $GPG_USER > /dev/nulls
+  - echo "" | gpg2 --pinentry-mode loopback --passphrase $GPG_PASS --sign -u $GPG_USER > /dev/null
 
 .test_common: &test_common
   artifacts:
@@ -33,15 +33,36 @@ stages:
 
 .package_common: &package_common
   artifacts:
-    name: "$CI_JOB_NAME-$CI_COMMIT_REF_NAME"
+    name: "$CI_JOB_NAME-$CI_COMMIT_SHA"
     paths:
-      - output/*
+      - $CI_JOB_NAME/*
     when: on_success
+  except:
+    - /^master/
+  only:
+    - branches
   script:
     - git checkout -B "$CI_BUILD_REF_NAME" "$CI_BUILD_REF"
     - git fetch origin +refs/tags/$UBOOT_RELEASE:refs/tags/$UBOOT_RELEASE
-    - gbp buildpackage --git-upstream-tree=$UBOOT_RELEASE --git-debian-branch="$CI_BUILD_REF_NAME" --git-builder='DEB_BUILD_OPTIONS=parallel=$(nproc) dpkg-buildpackage --post-clean -a$ARCH -pgpg2 -i -I'
-    - mkdir output && cp -vf ../u-boot-olinuxino_*.* ./output/
+    - gbp buildpackage --git-upstream-tree=$UBOOT_RELEASE --git-debian-branch="$CI_BUILD_REF_NAME" --git-builder='DEB_BUILD_OPTIONS=parallel=$(nproc) dpkg-buildpackage --post-clean --no-sign -a$ARCH -i -I'
+    - mkdir $CI_JOB_NAME && cp -vf ../u-boot-olinuxino_*.* ./$CI_JOB_NAME/
+  stage: package
+
+.package_common_signed: &package_common_signed
+  artifacts:
+    name: "$CI_JOB_NAME-$CI_COMMIT_SHA"
+    paths:
+      - $CI_JOB_NAME/*
+    when: on_success
+  only:
+    - tags
+    - /^debian/
+    - /^master/
+  script:
+    - git checkout -B "$CI_BUILD_REF_NAME" "$CI_BUILD_REF"
+    - git fetch origin +refs/tags/$UBOOT_RELEASE:refs/tags/$UBOOT_RELEASE
+    - gbp buildpackage --git-upstream-tree=$UBOOT_RELEASE --git-debian-branch="$CI_BUILD_REF_NAME" --git-builder='DEB_BUILD_OPTIONS=parallel=$(nproc) dpkg-buildpackage --post-clean -a$ARCH -i -I'
+    - mkdir $CI_JOB_NAME && cp -vf ../u-boot-olinuxino_*.* ./$CI_JOB_NAME/
   stage: package
 
 test:a20-olinuxino:
@@ -68,8 +89,7 @@ package:armhf:
   before_script:
     - dpkg --add-architecture $ARCH
     - *install_common_packages
-    - apt-get install -y --no-install-recommends debhelper-compat devscripts git git-buildpackage gnupg2 lzop:$ARCH
-    - *import_gpg_key
+    - apt-get install -y --no-install-recommends debhelper-compat devscripts git git-buildpackage lzop:$ARCH
   <<: *package_common
 
 package:arm64:
@@ -78,9 +98,28 @@ package:arm64:
   before_script:
     - dpkg --add-architecture $ARCH
     - *install_common_packages
+    - apt-get install -y --no-install-recommends debhelper-compat devscripts git git-buildpackage
+  <<: *package_common
+
+package:signed:armhf:
+  variables:
+    ARCH: armhf
+  before_script:
+    - dpkg --add-architecture $ARCH
+    - *install_common_packages
+    - apt-get install -y --no-install-recommends debhelper-compat devscripts git git-buildpackage gnupg2 lzop:$ARCH
+    - *import_gpg_key
+  <<: *package_common_signed
+
+package:signed:arm64:
+  variables:
+    ARCH: arm64
+  before_script:
+    - dpkg --add-architecture $ARCH
+    - *install_common_packages
     - apt-get install -y --no-install-recommends debhelper-compat devscripts git git-buildpackage gnupg2
     - *import_gpg_key
-  <<: *package_common
+  <<: *package_common_signed
 
 deploy:
   except:
