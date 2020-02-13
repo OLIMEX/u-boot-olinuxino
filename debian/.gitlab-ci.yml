@@ -8,6 +8,7 @@ stages:
   - test
   - source
   - binary
+  - merge
   - deploy
 
 .test_common: &test_common
@@ -31,10 +32,12 @@ test:a64-olinuxino:
   <<: *test_common
 
 package:source:
-  script:
+  before_script:
+    - rm -vf ../u-boot-olinuxino_* || true
     - git checkout -B "$CI_BUILD_REF_NAME" "$CI_BUILD_REF"
     - git fetch origin +refs/tags/$UBOOT_RELEASE:refs/tags/$UBOOT_RELEASE
-    - gbp export-orig --upstream-tree=v2020.01
+    - gbp export-orig --upstream-tree=$UBOOT_RELEASE
+  script:
     - dpkg-buildpackage --post-clean -S -i -I
   stage: source
 
@@ -44,11 +47,11 @@ package:armhf:
   before_script:
     - dpkg --add-architecture $ARCH
     - apt-get update && apt-get install -y --no-install-recommends lzop:armhf
+    - git checkout -B "$CI_BUILD_REF_NAME" "$CI_BUILD_REF"
+    - git fetch origin +refs/tags/$UBOOT_RELEASE:refs/tags/$UBOOT_RELEASE
   needs:
     - "package:source"
   script:
-    - git checkout -B "$CI_BUILD_REF_NAME" "$CI_BUILD_REF"
-    - git fetch origin +refs/tags/$UBOOT_RELEASE:refs/tags/$UBOOT_RELEASE
     - DEB_BUILD_OPTIONS=parallel=$(nproc) dpkg-buildpackage --post-clean --no-sign -a$ARCH -i -I -b
   stage: binary
 
@@ -57,24 +60,44 @@ package:arm64:
     ARCH: arm64
   before_script:
     - dpkg --add-architecture $ARCH
+    - git checkout -B "$CI_BUILD_REF_NAME" "$CI_BUILD_REF"
+    - git fetch origin +refs/tags/$UBOOT_RELEASE:refs/tags/$UBOOT_RELEASE
   needs:
     - "package:source"
   script:
-    - git checkout -B "$CI_BUILD_REF_NAME" "$CI_BUILD_REF"
-    - git fetch origin +refs/tags/$UBOOT_RELEASE:refs/tags/$UBOOT_RELEASE
     - DEB_BUILD_OPTIONS=parallel=$(nproc) dpkg-buildpackage --post-clean --no-sign -a$ARCH -i -I -b
   stage: binary
 
-deploy:
+package:merge:
   artifacts:
     name: "$CI_PROJECT_NAME-$CI_COMMIT_SHORT_SHA"
     paths:
-      - "$CI_PROJECT_NAME-$CI_COMMIT_SHORT_SHA/*"
+      - $CI_PROJECT_NAME-$CI_COMMIT_SHORT_SHA/*
+  script:
+    - mkdir $CI_PROJECT_NAME-$CI_COMMIT_SHORT_SHA && mv -v ../u-boot-olinuxino_*.* $CI_PROJECT_NAME-$CI_COMMIT_SHORT_SHA/
+    - mergechanges -f $CI_PROJECT_NAME-$CI_COMMIT_SHORT_SHA/*.changes
+  stage: merge
+
+deploy:staging:
+  rules:
+    - if: '$CI_COMMIT_REF_PROTECTED == "true"'
+      when: manual
+  script:
+    - reprepro -b /var/www/html/staging include sid $CI_PROJECT_NAME-$CI_COMMIT_SHORT_SHA/*_multi.changes
+  stage: deploy
+  tags:
+    - deploy
+
+deploy:repository:
   before_script:
     - gpg --no-tty --batch --yes --import $SIGN_KEY
     - echo "" | gpg2 --pinentry-mode loopback --passphrase $GPG_PASS --sign -u $GPG_USER > /dev/null
+  rules:
+    - if: '$CI_COMMIT_REF_PROTECTED == "true"'
+      when: manual
   script:
-    - mergechanges -f ../*.changes
-    - debsign ../*_multi.changes
-    - mkdir "$CI_PROJECT_NAME-$CI_COMMIT_SHORT_SHA" && cp -v ../u-boot-olinuxino_*.* "$CI_PROJECT_NAME-$CI_COMMIT_SHORT_SHA"
+    - debsign $CI_PROJECT_NAME-$CI_COMMIT_SHORT_SHA/*_multi.changes
+    - reprepro -b /var/www/html/staging include sid $CI_PROJECT_NAME-$CI_COMMIT_SHORT_SHA/*_multi.changes
   stage: deploy
+  tags:
+    - deploy
