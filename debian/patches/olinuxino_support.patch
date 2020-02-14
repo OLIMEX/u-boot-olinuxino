@@ -462,10 +462,10 @@ index 0000000000..9d4fd004e2
 +}
 diff --git a/board/olimex/a20_olinuxino/fdt.c b/board/olimex/a20_olinuxino/fdt.c
 new file mode 100644
-index 0000000000..b560a1e525
+index 0000000000..ee8a86cc91
 --- /dev/null
 +++ b/board/olimex/a20_olinuxino/fdt.c
-@@ -0,0 +1,117 @@
+@@ -0,0 +1,144 @@
 +/*
 + * Copyright (C) 2019 Olimex Ltd.
 + *   Author: Stefan Mavrodiev <stefan@olimex.com>
@@ -473,6 +473,7 @@ index 0000000000..b560a1e525
 + * SPDX-License-Identifier: (GPL-2.0+ OR MIT)
 + */
 +#include <common.h>
++#include <linux/ctype.h>
 +
 +#include <olimex/boards.h>
 +
@@ -486,6 +487,28 @@ index 0000000000..b560a1e525
 +		      path, fdt_strerror(offset), offset);
 +
 +	return offset;
++}
++
++static int board_set_compatible(void *fdt)
++{
++	char name[40], *p;
++	int offset;
++	int ret;
++
++	/* Set compatible string */
++	snprintf(name, 32, "olimex,%s", olinuxino_get_board_name());
++	p = name;
++	for (; *p; p++)
++		*p = tolower(*p);
++
++	offset = _fdt_path_offset(fdt, "/");
++	ret = fdt_setprop_string(fdt, offset, "compatible", name);
++	if (ret) {
++		printf("%s@%d\n", __func__, __LINE__);
++		return ret;
++	}
++
++	return 0;
 +}
 +
 +static int board_enable_spi_flash(void *fdt)
@@ -569,6 +592,10 @@ index 0000000000..b560a1e525
 +	int ret;
 +
 +	ret = fdt_increase_size(fdt, 4096);
++	if (ret)
++		return ret;
++
++	ret = board_set_compatible(fdt);
 +	if (ret)
 +		return ret;
 +
@@ -832,10 +859,10 @@ index 0000000000..655336d5f1
 +#endif
 diff --git a/board/olimex/a64_olinuxino/fdt.c b/board/olimex/a64_olinuxino/fdt.c
 new file mode 100644
-index 0000000000..14959fcca5
+index 0000000000..713d5b5010
 --- /dev/null
 +++ b/board/olimex/a64_olinuxino/fdt.c
-@@ -0,0 +1,116 @@
+@@ -0,0 +1,142 @@
 +/*
 + * Copyright (C) 2019 Olimex Ltd.
 + *   Author: Stefan Mavrodiev <stefan@olimex.com>
@@ -874,6 +901,28 @@ index 0000000000..14959fcca5
 +	ret = 0;
 +	return ret;
 +
++}
++
++static int board_set_compatible(void *fdt)
++{
++	char name[40], *p;
++	int offset;
++	int ret;
++
++	/* Set compatible string */
++	snprintf(name, 32, "olimex,%s", olinuxino_get_board_name());
++	p = name;
++	for (; *p; p++)
++		*p = tolower(*p);
++
++	offset = _fdt_path_offset(fdt, "/");
++	ret = fdt_setprop_string(fdt, offset, "compatible", name);
++	if (ret) {
++		printf("%s@%d\n", __func__, __LINE__);
++		return ret;
++	}
++
++	return 0;
 +}
 +
 +static int board_disable_ethernet(void *fdt)
@@ -917,6 +966,10 @@ index 0000000000..14959fcca5
 +
 +	/* Increase FDT blob size by 4KiB */
 +	ret = fdt_increase_size(fdt, 4096);
++	if (ret)
++		return ret;
++
++	ret = board_set_compatible(fdt);
 +	if (ret)
 +		return ret;
 +
@@ -3427,10 +3480,10 @@ index 0000000000..b0b92f988d
 +}
 diff --git a/configs/A20-OLinuXino_defconfig b/configs/A20-OLinuXino_defconfig
 new file mode 100644
-index 0000000000..a27c58aca7
+index 0000000000..870feb992e
 --- /dev/null
 +++ b/configs/A20-OLinuXino_defconfig
-@@ -0,0 +1,70 @@
+@@ -0,0 +1,71 @@
 +CONFIG_ARM=y
 +CONFIG_ARCH_SUNXI=y
 +CONFIG_NR_DRAM_BANKS=1
@@ -3501,6 +3554,7 @@ index 0000000000..a27c58aca7
 +
 +CONFIG_VIDEO_LCD_PANEL_OLINUXINO=y
 +CONFIG_VIDEO_LCD_DCLK_PHASE-0
++CONFIG_FIT_BEST_MATCH=y
 diff --git a/configs/A64-OLinuXino_defconfig b/configs/A64-OLinuXino_defconfig
 new file mode 100644
 index 0000000000..9fa289da35
