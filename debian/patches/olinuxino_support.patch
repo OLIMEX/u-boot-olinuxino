@@ -1007,10 +1007,10 @@ index 0000000000..713d5b5010
 +}
 diff --git a/board/olimex/common/boards.c b/board/olimex/common/boards.c
 new file mode 100644
-index 0000000000..511c3e483e
+index 0000000000..67ab47cf85
 --- /dev/null
 +++ b/board/olimex/common/boards.c
-@@ -0,0 +1,510 @@
+@@ -0,0 +1,521 @@
 +/*
 + * Copyright (C) 2019 Olimex Ltd.
 + *   Author: Stefan Mavrodiev <stefan@olimex.com>
@@ -1042,14 +1042,16 @@ index 0000000000..511c3e483e
 +		OLINUXINO_CONFIG(SPI, MBYTES(16), MBYTES(512), COM)
 +	},
 +	{
-+		OLINUXINO_BOARD_LIME(9516, "A20-OLinuXino-LIME-e16Gs16M", "sun7i-a20-olinuxino-lime2-emmc")
-+		OLINUXINO_CONFIG(EMMC, GBYTES(16), MBYTES(512), COM)
-+
++		OLINUXINO_BOARD_LIME(9160, "A20-OLinuXino-LIME-e4GB", "sun7i-a20-olinuxino-lime-emmc")
++		OLINUXINO_CONFIG(EMMC, GBYTES(4), MBYTES(512), COM)
 +	},
 +	{
-+		OLINUXINO_BOARD_LIME(9696, "A20-OLinuXino-LIME-e4Gs16M", "sun7i-a20-olinuxino-lime2-emc")
++		OLINUXINO_BOARD_LIME(9516, "A20-OLinuXino-LIME-e16Gs16M", "sun7i-a20-olinuxino-lime-emmc")
++		OLINUXINO_CONFIG(EMMC, GBYTES(16), MBYTES(512), COM)
++	},
++	{
++		OLINUXINO_BOARD_LIME(9696, "A20-OLinuXino-LIME-e4Gs16M", "sun7i-a20-olinuxino-lime-emmc")
 +		OLINUXINO_CONFIG(EMMC, GBYTES(4), MBYTES(512), COM)
-+
 +	},
 +
 +	/* T2-OLinuXino-Lime */
@@ -1058,15 +1060,15 @@ index 0000000000..511c3e483e
 +		OLINUXINO_CONFIG(NONE, -1, MBYTES(512), IND)
 +	},
 +	{
-+		OLINUXINO_BOARD_LIME(9215, "T2-OLinuXino-LIME-s16M-IND", "sun7i-a20-olinuxino-lime")
++		OLINUXINO_BOARD_LIME(9215, "T2-OLinuXino-LIME-s16MB-IND", "sun7i-a20-olinuxino-lime")
 +		OLINUXINO_CONFIG(SPI, MBYTES(16), MBYTES(512), IND)
 +	},
 +	{
-+		OLINUXINO_BOARD_LIME(9219, "T2-OLinuXino-LIME-e4G-IND", "sun7i-a20-olinuxino-lime2-emmc")
++		OLINUXINO_BOARD_LIME(9219, "T2-OLinuXino-LIME-e4G-IND", "sun7i-a20-olinuxino-lime-emmc")
 +		OLINUXINO_CONFIG(EMMC, GBYTES(4), MBYTES(512), IND)
 +	},
 +	{
-+		OLINUXINO_BOARD_LIME(9734, "T2-OLinuXino-LIME-e4Gs16M-IND", "sun7i-a20-olinuxino-lime2-emmc")
++		OLINUXINO_BOARD_LIME(9734, "T2-OLinuXino-LIME-e4Gs16M-IND", "sun7i-a20-olinuxino-lime-emmc")
 +		OLINUXINO_CONFIG(EMMC, GBYTES(4), MBYTES(512), IND)
 +
 +	},
@@ -1093,7 +1095,7 @@ index 0000000000..511c3e483e
 +		OLINUXINO_CONFIG(NAND, GBYTES(8), GBYTES(1), COM)
 +	},
 +	{
-+		OLINUXINO_BOARD_LIME2(8946, "A20-OLinuXino-LIME2-s16MB", "sun7i-a20-olinuxino-lime2")
++		OLINUXINO_BOARD_LIME2(8946, "A20-OLinuXino-LIME2-s16M", "sun7i-a20-olinuxino-lime2")
 +		OLINUXINO_CONFIG(SPI, MBYTES(16), GBYTES(1), COM)
 +	},
 +	{
@@ -1115,7 +1117,7 @@ index 0000000000..511c3e483e
 +		OLINUXINO_CONFIG(NONE, -1, GBYTES(1), IND)
 +	},
 +	{
-+		OLINUXINO_BOARD_LIME2(9247 , "T2-OLinuXino-LIME2-s16MB-IND", "sun7i-a20-olinuxino-lime2")
++		OLINUXINO_BOARD_LIME2(9247 , "T2-OLinuXino-LIME2-s16M-IND", "sun7i-a20-olinuxino-lime2")
 +		OLINUXINO_CONFIG(SPI, MBYTES(16), GBYTES(1), IND)
 +	},
 +	{
@@ -1153,7 +1155,7 @@ index 0000000000..511c3e483e
 +		OLINUXINO_CONFIG(EMMC, GBYTES(16), GBYTES(1), COM)
 +	},
 +	{
-+		OLINUXINO_BOARD_MICRO(9231, "A20-OLinuXino-MICRO-s16MB", "sun7i-a20-olinuxino-micro")
++		OLINUXINO_BOARD_MICRO(9231, "A20-OLinuXino-MICRO-s16M", "sun7i-a20-olinuxino-micro")
 +		OLINUXINO_CONFIG(SPI, MBYTES(16), GBYTES(1), COM)
 +	},
 +	{
@@ -1171,11 +1173,11 @@ index 0000000000..511c3e483e
 +		OLINUXINO_CONFIG(NONE, -1, GBYTES(1), IND)
 +	},
 +	{
-+		OLINUXINO_BOARD_MICRO(9227, "T2-OLinuXino-MICRO-e4GB-IND", "sun7i-a20-olinuxino-micro-emmc")
++		OLINUXINO_BOARD_MICRO(9227, "T2-OLinuXino-MICRO-e4G-IND", "sun7i-a20-olinuxino-micro-emmc")
 +		OLINUXINO_CONFIG(EMMC, GBYTES(4), GBYTES(1), IND)
 +	},
 +	{
-+		OLINUXINO_BOARD_MICRO(9235, "T2-OLinuXino-MICRO-s16MB-IND", "sun7i-a20-olinuxino-micro")
++		OLINUXINO_BOARD_MICRO(9235, "T2-OLinuXino-MICRO-s16M-IND", "sun7i-a20-olinuxino-micro")
 +		OLINUXINO_CONFIG(SPI, MBYTES(16), GBYTES(1), IND)
 +	},
 +	{
@@ -1183,7 +1185,7 @@ index 0000000000..511c3e483e
 +		OLINUXINO_CONFIG(EMMC, GBYTES(4), GBYTES(1), IND)
 +	},
 +	{
-+		OLINUXINO_BOARD_MICRO(9789, "T2-OLinuXino-MICRO-e4Gs16M-IND", "sun7i-a20-olinuxino-micro-emmc")
++		OLINUXINO_BOARD_MICRO(9789, "T2-OLinuXino-MICRO-e8Gs16M-IND", "sun7i-a20-olinuxino-micro-emmc")
 +		OLINUXINO_CONFIG(EMMC, GBYTES(4), GBYTES(1), IND)
 +	},
 +
@@ -1224,8 +1226,13 @@ index 0000000000..511c3e483e
 +	},
 +	{
 +		OLINUXINO_BOARD_SOM(9827, "T2-SOM-e8Gs16M-IND", "sun7i-a20-olimex-som-evb")
-+		OLINUXINO_CONFIG(NONE, GBYTES(8), GBYTES(1), IND)
++		OLINUXINO_CONFIG(EMMC, GBYTES(8), GBYTES(1), IND)
 +	},
++	{
++		OLINUXINO_BOARD_SOM(10238, "T2-SOM204-1G-I", "sun7i-a20-olimex-som-evb")
++		OLINUXINO_CONFIG(NONE, -1, GBYTES(1), IND)
++	},
++
 +
 +	/* A20-SOM204 */
 +	{
@@ -1235,6 +1242,10 @@ index 0000000000..511c3e483e
 +	{
 +		OLINUXINO_BOARD_SOM204(8958, "A20-SOM204-1Gs16Me16G-MC", "sun7i-a20-olimex-som204-evb-emmc")
 +		OLINUXINO_CONFIG(EMMC, GBYTES(16), GBYTES(1), COM)
++	},
++	{
++		OLINUXINO_BOARD_SOM204(10257, "A20-SOM204-1G-M", "sun7i-a20-olimex-som204-evb")
++		OLINUXINO_CONFIG(NONE, -1, GBYTES(1), COM)
 +	},
 +
 +	/* T2-SOM204 */
