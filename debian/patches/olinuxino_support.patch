@@ -1,3 +1,15 @@
+diff --git a/arch/arm/include/asm/arch-sunxi/gpio.h b/arch/arm/include/asm/arch-sunxi/gpio.h
+index a646ea6a3c..7adc31272c 100644
+--- a/arch/arm/include/asm/arch-sunxi/gpio.h
++++ b/arch/arm/include/asm/arch-sunxi/gpio.h
+@@ -205,6 +205,7 @@ enum sunxi_gpio_number {
+ #define SUN6I_GPH_UART0		2
+ #define SUN9I_GPH_UART0		2
+ #define SUN50I_H6_GPH_UART0	2
++#define SUN7I_GPH_EMAC		3
+ 
+ #define SUNXI_GPI_SDC3		2
+ #define SUN7I_GPI_TWI3		3
 diff --git a/arch/arm/include/asm/arch-sunxi/lcdc.h b/arch/arm/include/asm/arch-sunxi/lcdc.h
 index 90216bcfd5..11ff84f9ee 100644
 --- a/arch/arm/include/asm/arch-sunxi/lcdc.h
@@ -220,10 +232,10 @@ index 0000000000..afb2d08a6d
 +endif
 diff --git a/board/olimex/a20_olinuxino/board.c b/board/olimex/a20_olinuxino/board.c
 new file mode 100644
-index 0000000000..9d4fd004e2
+index 0000000000..d8227f88e4
 --- /dev/null
 +++ b/board/olimex/a20_olinuxino/board.c
-@@ -0,0 +1,236 @@
+@@ -0,0 +1,248 @@
 +/*
 + * Copyright (C) 2020 Olimex Ltd.
 + *   Author: Stefan Mavrodiev <stefan@olimex.com>
@@ -346,6 +358,18 @@ index 0000000000..9d4fd004e2
 +		gpio_direction_output(pin, 0);
 +		mdelay(100);
 +		gpio_direction_output(pin, 1);
++
++		/**
++		 * If the board has additional MII phy, toggle reset
++		 */
++		if (olinuxino_board_has_emac()) {
++			pin = sunxi_name_to_gpio("PC18");
++
++			gpio_request(pin, "emac_rst");
++			gpio_direction_output(pin, 0);
++			mdelay(100);
++			gpio_direction_output(pin, 1);
++		}
 +	}
 +
 +	return 0;
@@ -462,10 +486,10 @@ index 0000000000..9d4fd004e2
 +}
 diff --git a/board/olimex/a20_olinuxino/fdt.c b/board/olimex/a20_olinuxino/fdt.c
 new file mode 100644
-index 0000000000..ee8a86cc91
+index 0000000000..6993b757ee
 --- /dev/null
 +++ b/board/olimex/a20_olinuxino/fdt.c
-@@ -0,0 +1,144 @@
+@@ -0,0 +1,257 @@
 +/*
 + * Copyright (C) 2019 Olimex Ltd.
 + *   Author: Stefan Mavrodiev <stefan@olimex.com>
@@ -548,7 +572,7 @@ index 0000000000..ee8a86cc91
 +		return offset;
 +
 +	/* Change status to okay */
-+	ret |= fdt_set_node_status(fdt, offset, FDT_STATUS_OKAY, 0);
++	ret |= fdt_status_okay(fdt, offset);
 +	ret |= fdt_setprop_u32(fdt, offset, "spi-max-frequency", 20000000);
 +	ret |= fdt_setprop_u32(fdt, offset, "pinctrl-0", phandle);
 +	ret |= fdt_setprop_string(fdt, offset, "pinctrl-names", "default");
@@ -563,7 +587,7 @@ index 0000000000..ee8a86cc91
 +		return offset;
 +	}
 +
-+	ret |= fdt_set_node_status(fdt, offset, FDT_STATUS_OKAY, 0);
++	ret |= fdt_status_okay(fdt, offset);
 +	ret |= fdt_setprop_u32(fdt, offset, "spi-max-frequency", 20000000);
 +	ret |= fdt_setprop_u32(fdt, offset, "reg", 0);
 +	ret |= fdt_setprop_u32(fdt, offset, "#size-cells", 1);
@@ -587,6 +611,94 @@ index 0000000000..ee8a86cc91
 +	return ret;
 +}
 +
++static int board_disable_gmac(void *fdt)
++{
++	int offset;
++	int ret;
++
++	ret = fdt_status_disabled_by_alias(fdt, "ethernet0");
++	if (ret < 0) {
++		printf("%s@%d\n", __func__, __LINE__);
++		return ret;
++	}
++
++	offset = _fdt_path_offset(fdt, "/aliases");
++	if (offset < 0)
++		return offset;
++
++	ret = fdt_delprop(fdt, offset, "ethernet0");
++	if (ret < 0) {
++		printf("%s@%d\n", __func__, __LINE__);
++		return ret;
++	}
++
++	return 0;
++}
++
++static int board_enable_emac(void *fdt)
++{
++	int offset;
++	int ret;
++
++	offset = _fdt_path_offset(fdt, "/soc/ethernet@1c0b000");
++	if (offset < 0)
++		return offset;
++
++	ret = fdt_status_okay(fdt, offset);
++	if (ret < 0) {
++		printf("%s@%d\n", __func__, __LINE__);
++		return ret;
++	}
++
++	offset = _fdt_path_offset(fdt, "/aliases");
++	if (offset < 0)
++		return offset;
++
++	if (olinuxino_get_board_id() == 10257)
++		ret = fdt_setprop_string(fdt, offset,
++					 "ethernet0",
++					 "/soc/ethernet@1c0b000");
++	else
++		ret = fdt_setprop_string(fdt, offset,
++					 "ethernet1",
++					 "/soc/ethernet@1c0b000");
++	if (ret < 0) {
++		printf("%s@%d\n", __func__, __LINE__);
++		return ret;
++	}
++
++	return 0;
++}
++
++static int board_disable_sdio(void *fdt)
++{
++	int offset;
++	int ret;
++
++	offset = _fdt_path_offset(fdt, "/soc/mmc@1c12000");
++	if (offset < 0)
++		return offset;
++
++	ret = fdt_status_disabled(fdt, offset);
++	if (ret < 0) {
++		printf("%s@%d\n", __func__, __LINE__);
++		return ret;
++	}
++
++	offset = _fdt_path_offset(fdt, "/aliases");
++	if (offset < 0)
++		return offset;
++
++	ret = fdt_delprop(fdt, offset, "ethernet1");
++	if (ret < 0) {
++		printf("%s@%d\n", __func__, __LINE__);
++		return ret;
++	}
++
++	return 0;
++
++}
++
 +int board_fix_fdt(void *fdt)
 +{
 +	int ret;
@@ -608,14 +720,39 @@ index 0000000000..ee8a86cc91
 +			return ret;
 +	}
 +
++	/**
++	 * On A20-SOM204 disable SDIO WIFI, since it's unusable in
++	 * the U-Boot
++	 */
++	if (olinuxino_get_board_family() == OLINUXINO_SOM204) {
++		ret = board_disable_sdio(fdt);
++		if (ret < 0)
++			return ret;
++	}
++
++	/**
++	 * A20-SOM204-1G-M (10257) has only megabit interface
++	 */
++	if (olinuxino_get_board_id() == 10257) {
++		ret = board_disable_gmac(fdt);
++		if (ret < 0)
++			return ret;
++	}
++
++	if (olinuxino_board_has_emac()) {
++		ret = board_enable_emac(fdt);
++		if (ret < 0)
++			return ret;
++	}
++
 +	return 0;
 +}
 diff --git a/board/olimex/a20_olinuxino/gmac.c b/board/olimex/a20_olinuxino/gmac.c
 new file mode 100644
-index 0000000000..f974634b7d
+index 0000000000..a2af9f4a6e
 --- /dev/null
 +++ b/board/olimex/a20_olinuxino/gmac.c
-@@ -0,0 +1,63 @@
+@@ -0,0 +1,69 @@
 +/*
 + * Copyright (C) 2019 Olimex Ltd.
 + *   Author: Stefan Mavrodiev <stefan@olimex.com>
@@ -639,6 +776,12 @@ index 0000000000..f974634b7d
 +	enum olinuxino_phy_mode mode;
 +	uint8_t tx_delay = 0;
 +	int pin;
++
++	/**
++	 * A20-SOM204-1G-M (10257) has only megabit interface
++	 */
++	if (olinuxino_get_board_id() == 10257)
++		return;
 +
 +	mode = olinuxino_get_phy_mode();
 +	if (mode == OLINUXINO_PHY_MODE_UNKNOWN)
@@ -1007,10 +1150,10 @@ index 0000000000..713d5b5010
 +}
 diff --git a/board/olimex/common/boards.c b/board/olimex/common/boards.c
 new file mode 100644
-index 0000000000..67ab47cf85
+index 0000000000..c010fbdd57
 --- /dev/null
 +++ b/board/olimex/common/boards.c
-@@ -0,0 +1,521 @@
+@@ -0,0 +1,548 @@
 +/*
 + * Copyright (C) 2019 Olimex Ltd.
 + *   Author: Stefan Mavrodiev <stefan@olimex.com>
@@ -1285,6 +1428,14 @@ index 0000000000..67ab47cf85
 +	}
 +};
 +
++uint32_t olinuxino_get_board_id()
++{
++	if (!olinuxino_eeprom_is_valid())
++		return 0;
++
++	return eeprom->id;
++}
++
 +const char *olinuxino_get_board_name()
 +{
 +	struct olinuxino_boards *board = olinuxino_boards;
@@ -1420,7 +1571,7 @@ index 0000000000..67ab47cf85
 +	}
 +}
 +
-+uint8_t olinuxino_phy_txdelay(void)
++uint8_t olinuxino_phy_txdelay()
 +{
 +	switch (olinuxino_get_board_family()) {
 +	case OLINUXINO_LIME2:
@@ -1437,6 +1588,25 @@ index 0000000000..67ab47cf85
 +		return 4;
 +	default:
 +		return 0;
++	}
++}
++
++bool olinuxino_board_has_emac()
++{
++	if (!olinuxino_eeprom_is_valid())
++		return false;
++
++	switch (eeprom->id) {
++	/* A20-SOM204-1Gs16Me16G-MC */
++	case 8958:
++	/* A20-SOM204-1G-M */
++	case 10257:
++	/* T2-SOM204-1Gs16Me8G-MC-I */
++	case 10234:
++		return true;
++
++	default:
++		return false;
 +	}
 +}
 +#endif
@@ -3491,10 +3661,10 @@ index 0000000000..b0b92f988d
 +}
 diff --git a/configs/A20-OLinuXino_defconfig b/configs/A20-OLinuXino_defconfig
 new file mode 100644
-index 0000000000..870feb992e
+index 0000000000..d9a691306e
 --- /dev/null
 +++ b/configs/A20-OLinuXino_defconfig
-@@ -0,0 +1,71 @@
+@@ -0,0 +1,72 @@
 +CONFIG_ARM=y
 +CONFIG_ARCH_SUNXI=y
 +CONFIG_NR_DRAM_BANKS=1
@@ -3566,6 +3736,7 @@ index 0000000000..870feb992e
 +CONFIG_VIDEO_LCD_PANEL_OLINUXINO=y
 +CONFIG_VIDEO_LCD_DCLK_PHASE-0
 +CONFIG_FIT_BEST_MATCH=y
++CONFIG_SUN4I_EMAC=y
 diff --git a/configs/A64-OLinuXino_defconfig b/configs/A64-OLinuXino_defconfig
 new file mode 100644
 index 0000000000..9fa289da35
@@ -3622,6 +3793,37 @@ index 0000000000..9fa289da35
 +CONFIG_USB_GADGET_DOWNLOAD=y
 +CONFIG_CMD_USB_MASS_STORAGE=y
 +CONFIG_USB_MUSB_PIO_ONLY=y
+diff --git a/drivers/net/sunxi_emac.c b/drivers/net/sunxi_emac.c
+index 9a5f7fd3c7..d2b4d4b673 100644
+--- a/drivers/net/sunxi_emac.c
++++ b/drivers/net/sunxi_emac.c
+@@ -16,6 +16,10 @@
+ #include <asm/arch/clock.h>
+ #include <asm/arch/gpio.h>
+ 
++#ifdef CONFIG_TARGET_A20_OLINUXINO
++#include <olimex/boards.h>
++#endif
++
+ /* EMAC register  */
+ struct emac_regs {
+ 	u32 ctl;	/* 0x00 */
+@@ -512,6 +516,15 @@ static int sunxi_emac_board_setup(struct emac_eth_dev *priv)
+ 	/* Map SRAM to EMAC */
+ 	setbits_le32(&sram->ctrl1, 0x5 << 2);
+ 
++#ifdef CONFIG_TARGET_A20_OLINUXINO
++	if (olinuxino_board_has_emac()) {
++		for (pin = SUNXI_GPH(8); pin <= SUNXI_GPH(27); pin++) {
++			if (pin == SUNXI_GPH(12) || pin == SUNXI_GPH(13))
++				continue;
++			sunxi_gpio_set_cfgpin(pin, SUN7I_GPH_EMAC);
++		}
++	} else
++#endif /* CONFIG_TARGET_A20_OLINUXINO */
+ 	/* Configure pin mux settings for MII Ethernet */
+ 	for (pin = SUNXI_GPA(0); pin <= SUNXI_GPA(17); pin++)
+ 		sunxi_gpio_set_cfgpin(pin, SUNXI_GPA_EMAC);
 diff --git a/drivers/video/sunxi/lcdc.c b/drivers/video/sunxi/lcdc.c
 index 4cf3a0eb75..eacd44b20f 100644
 --- a/drivers/video/sunxi/lcdc.c
@@ -4098,10 +4300,10 @@ index 0000000000..5718643f61
 +#endif /* __A64_OLINUXINO_H */
 diff --git a/include/olimex/boards.h b/include/olimex/boards.h
 new file mode 100644
-index 0000000000..56ae407460
+index 0000000000..3ec0770dfe
 --- /dev/null
 +++ b/include/olimex/boards.h
-@@ -0,0 +1,115 @@
+@@ -0,0 +1,117 @@
 +/*
 + * SPDX-License-Identifier: (GPL-2.0+ OR MIT)
 + *
@@ -4193,6 +4395,7 @@ index 0000000000..56ae407460
 +
 +extern struct olinuxino_boards olinuxino_boards[];
 +
++uint32_t olinuxino_get_board_id(void);
 +const char *olinuxino_get_board_name(void);
 +void olinuxino_get_board_revision(char *data);
 +void olinuxino_get_board_mac(char *data);
@@ -4203,6 +4406,7 @@ index 0000000000..56ae407460
 +enum olinuxino_family olinuxino_get_board_family(void);
 +enum olinuxino_phy_mode olinuxino_get_phy_mode(void);
 +uint8_t olinuxino_phy_txdelay(void);
++bool olinuxino_board_has_emac(void);
 +#endif
 +
 +#if defined(CONFIG_TARGET_A64_OLINUXINO)
