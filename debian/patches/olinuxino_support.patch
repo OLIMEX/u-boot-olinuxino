@@ -486,7 +486,7 @@ index 0000000000..d8227f88e4
 +}
 diff --git a/board/olimex/a20_olinuxino/fdt.c b/board/olimex/a20_olinuxino/fdt.c
 new file mode 100644
-index 0000000000..6993b757ee
+index 0000000000..2ab1646724
 --- /dev/null
 +++ b/board/olimex/a20_olinuxino/fdt.c
 @@ -0,0 +1,257 @@
@@ -515,12 +515,12 @@ index 0000000000..6993b757ee
 +
 +static int board_set_compatible(void *fdt)
 +{
-+	char name[40], *p;
++	char name[64], *p;
 +	int offset;
 +	int ret;
 +
 +	/* Set compatible string */
-+	snprintf(name, 32, "olimex,%s", olinuxino_get_board_name());
++	snprintf(name, 64, "olimex,%s", olinuxino_get_board_name());
 +	p = name;
 +	for (; *p; p++)
 +		*p = tolower(*p);
