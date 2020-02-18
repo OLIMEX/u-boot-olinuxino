@@ -1150,7 +1150,7 @@ index 0000000000..713d5b5010
 +}
 diff --git a/board/olimex/common/boards.c b/board/olimex/common/boards.c
 new file mode 100644
-index 0000000000..c010fbdd57
+index 0000000000..2b0fcbab41
 --- /dev/null
 +++ b/board/olimex/common/boards.c
 @@ -0,0 +1,548 @@
@@ -1371,10 +1371,6 @@ index 0000000000..c010fbdd57
 +		OLINUXINO_BOARD_SOM(9827, "T2-SOM-e8Gs16M-IND", "sun7i-a20-olimex-som-evb")
 +		OLINUXINO_CONFIG(EMMC, GBYTES(8), GBYTES(1), IND)
 +	},
-+	{
-+		OLINUXINO_BOARD_SOM(10238, "T2-SOM204-1G-I", "sun7i-a20-olimex-som-evb")
-+		OLINUXINO_CONFIG(NONE, -1, GBYTES(1), IND)
-+	},
 +
 +
 +	/* A20-SOM204 */
@@ -1399,6 +1395,10 @@ index 0000000000..c010fbdd57
 +	{
 +		OLINUXINO_BOARD_SOM204(10234, "T2-SOM204-1Gs16Me8G-MC-I", "sun7i-a20-olimex-som204-evb-emmc")
 +		OLINUXINO_CONFIG(EMMC, GBYTES(8), GBYTES(1), IND)
++	},
++	{
++		OLINUXINO_BOARD_SOM204(10238, "T2-SOM204-1G-I", "sun7i-a20-olimex-som204-evb")
++		OLINUXINO_CONFIG(NONE, -1, GBYTES(1), IND)
 +	},
 +#endif
 +#if defined(CONFIG_TARGET_A64_OLINUXINO)
