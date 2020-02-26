@@ -1,0 +1,14 @@
+ 
+diff --git a/configs/A13-OLinuXino_defconfig b/configs/A13-OLinuXino_defconfig
+index 41f36d7601..fbbb671d51 100644
+--- a/configs/A13-OLinuXino_defconfig
++++ b/configs/A13-OLinuXino_defconfig
+@@ -2,7 +2,7 @@ CONFIG_ARM=y
+ CONFIG_ARCH_SUNXI=y
+ CONFIG_SPL=y
+ CONFIG_MACH_SUN5I=y
+-CONFIG_DRAM_CLK=408
++CONFIG_DRAM_CLK=380
+ CONFIG_DRAM_EMR1=0
+ CONFIG_MMC0_CD_PIN="PG0"
+ CONFIG_USB0_VBUS_DET="PG1"
