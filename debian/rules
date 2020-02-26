@@ -7,6 +7,7 @@ export DEBIAN_REVISION ?= $(shell echo $(DEB_VERSION) | sed -e 's,.*+olimex,+oli
 # Support CROSS_COMPILING
 ifneq ($(DEB_BUILD_GNU_TYPE),$(DEB_HOST_GNU_TYPE))
 export CROSS_COMPILE ?= $(DEB_HOST_GNU_TYPE)-
+cross_build_tools ?= y
 endif
 
 # Support parallel build using DEB_BUILD_OPTIONS=parallel=N
@@ -30,9 +31,11 @@ LDFLAGS := $(patsubst -Wl$(comma)%,%,$(LDFLAGS))
 %:
 	dh $@
 
+override_dh_auto_build-arch: TOOLSDIR := debian/build/tools
 override_dh_auto_build-arch: TARGETARCH := $(DEB_HOST_ARCH)
-override_dh_auto_build-arch: build-targets
+override_dh_auto_build-arch: build-targets build-tools
 
+override_dh_auto_build-indep: TOOLSDIR := debian/build/tools
 override_dh_auto_build-indep: TARGETARCH := all
 override_dh_auto_build-indep: build-targets
 
@@ -56,6 +59,23 @@ build-targets:
 		echo $$builddir/uboot.env /usr/lib/u-boot-olinuxino/$$platform/ \
 			>> debian/build/targets; \
 	done
+
+build-tools:
+	$(MAKE) V=$(VERBOSE) O=$(TOOLSDIR) CROSS_COMPILE=$(CROSS_COMPILE) tools-only_defconfig
+	# Disable fit signatures, which requires OpenSSL which triggers
+	# licensing incompatibilities with the GPL:
+	# https://people.gnome.org/~markmc/openssl-and-the-gpl.html
+	sed -i -e 's,CONFIG_FIT_SIGNATURE=y,# CONFIG_FIT_SIGNATURE is not set,g' $(TOOLSDIR)/.config
+	cp $(TOOLSDIR)/.config $(TOOLSDIR)/config
+	# board-independent tools
+	$(MAKE) V=$(VERBOSE) O=$(TOOLSDIR) $(DEB_UBOOT_FLAGS) \
+		CROSS_COMPILE=$(CROSS_COMPILE) \
+		CROSS_BUILD_TOOLS=$(cross_build_tools) \
+		NO_SDL=1 \
+	    tools-only
+	$(CROSS_COMPILE)strip --strip-unneeded --remove-section=.comment --remove-section=.note $(TOOLSDIR)/tools/mkimage
+	$(CROSS_COMPILE)strip --strip-unneeded --remove-section=.comment --remove-section=.note $(TOOLSDIR)/tools/mkenvimage
+	$(CROSS_COMPILE)strip --strip-unneeded --remove-section=.comment --remove-section=.note $(TOOLSDIR)/tools/dumpimage
 
 override_dh_auto_test:
 

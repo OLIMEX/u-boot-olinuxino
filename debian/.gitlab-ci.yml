@@ -33,7 +33,7 @@ test:a64-olinuxino:
 
 package:source:
   before_script:
-    - rm -vf ../u-boot-olinuxino_* || true
+    - rm -vf ../u-boot-*olinuxino_* || true
     - git checkout -B "$CI_BUILD_REF_NAME" "$CI_BUILD_REF"
     - git fetch origin +refs/tags/$UBOOT_RELEASE:refs/tags/$UBOOT_RELEASE
     - gbp export-orig --upstream-tree=$UBOOT_RELEASE
@@ -46,7 +46,7 @@ package:armhf:
     ARCH: armhf
   before_script:
     - dpkg --add-architecture $ARCH
-    - apt-get update && apt-get install -y --no-install-recommends lzop:armhf
+    - apt-get update && apt-get install -y --no-install-recommends lzop:armhf libc6:armhf
     - git checkout -B "$CI_BUILD_REF_NAME" "$CI_BUILD_REF"
     - git fetch origin +refs/tags/$UBOOT_RELEASE:refs/tags/$UBOOT_RELEASE
   needs:
@@ -60,6 +60,7 @@ package:arm64:
     ARCH: arm64
   before_script:
     - dpkg --add-architecture $ARCH
+    - apt-get update && apt-get install -y --no-install-recommends libc6:arm64
     - git checkout -B "$CI_BUILD_REF_NAME" "$CI_BUILD_REF"
     - git fetch origin +refs/tags/$UBOOT_RELEASE:refs/tags/$UBOOT_RELEASE
   needs:
@@ -74,7 +75,7 @@ package:merge:
     paths:
       - $CI_PROJECT_NAME-$CI_COMMIT_SHORT_SHA/*
   script:
-    - mkdir $CI_PROJECT_NAME-$CI_COMMIT_SHORT_SHA && mv -v ../u-boot-olinuxino_*.* $CI_PROJECT_NAME-$CI_COMMIT_SHORT_SHA/
+    - mkdir $CI_PROJECT_NAME-$CI_COMMIT_SHORT_SHA && mv -v ../u-boot-*olinuxino_*.* $CI_PROJECT_NAME-$CI_COMMIT_SHORT_SHA/
     - mergechanges -f $CI_PROJECT_NAME-$CI_COMMIT_SHORT_SHA/*.changes
   stage: merge
 

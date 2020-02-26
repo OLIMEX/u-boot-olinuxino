@@ -11,6 +11,8 @@ Build-Depends:
  flex,
  gcc-arm-linux-gnueabihf [!armhf],
  gcc-aarch64-linux-gnu [!arm64],
+ libc6:arm64 [arm64] <cross>,
+ libc6:armhf [armhf] <cross>,
  libfdt-dev:native [arm64],
  libpython3-dev:native [linux-any],
  python3:any [linux-any],
@@ -28,7 +30,7 @@ Package: u-boot-olinuxino
 Architecture: armhf arm64
 Multi-Arch: same
 Depends: ${misc:Depends}
-Recommends: arm-trusted-firmware [arm64], u-boot-tools [arm64]
+Recommends: arm-trusted-firmware [arm64], u-boot-tools-olinuxino [arm64]
 Breaks: u-boot (<< 2014.10~rc2+dfsg1-2~), u-boot-sunxi
 Replaces: u-boot (<< 2014.10~rc2+dfsg1-2~), u-boot-sunxi
 Description: A boot loader for olinuxino boards
@@ -45,3 +47,25 @@ Description: A boot loader for olinuxino boards
  A64-OLinuXino-1Ge16GW
  A64-OLinuXino-1Gs16M
  A64-OLinuXino-1Ge4GW
+
+Package: u-boot-tools-olinuxino
+Architecture: linux-any
+Multi-Arch: foreign
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Recommends: device-tree-compiler,
+ libubootenv-tool,
+Breaks: uboot-envtools (<< 20081215-3~),
+        uboot-mkimage (<= 0.4build1),
+        u-boot (<< 2010.12-2),
+        u-boot-tools
+Replaces: uboot-envtools (<< 20081215-3~),
+          uboot-mkimage (<= 0.4build1),
+          u-boot (<< 2010.12-2),
+          u-boot-tools
+Description: companion tools for Das U-Boot bootloader
+ This package includes programs for generating and listing U-Boot
+ images in various formats:
+  - mkimage
+  - dumpimage
+  - mksunxiboot
+  - mkenvimage

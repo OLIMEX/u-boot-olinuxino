@@ -1,0 +1,16 @@
+#!/bin/sh
+
+builddir=debian/build/tools
+for tool in dumpimage mkimage mkenvimage ; do
+    echo ${builddir}/tools/${tool} /usr/bin/
+done
+
+# install config
+echo ${builddir}/config /usr/share/doc/u-boot-tools-olinuxino/
+
+echo doc/mkimage.1 /usr/share/man/man1/
+
+# example env configs
+for env_config in debian/env-configs/*.config tools/env/fw_env.config ; do
+	echo ${env_config} /usr/share/doc/u-boot-tools-olinuxino/examples/
+done
