@@ -84,7 +84,7 @@ deploy:staging:
     - if: '$CI_COMMIT_REF_PROTECTED == "true"'
       when: manual
   script:
-    - reprepro -b /var/www/html/staging include sid $CI_PROJECT_NAME-$CI_COMMIT_SHORT_SHA/*_multi.changes
+    - reprepro -b /var/www/html/staging include unstable $CI_PROJECT_NAME-$CI_COMMIT_SHORT_SHA/*_multi.changes
   stage: deploy
   tags:
     - deploy
@@ -98,7 +98,7 @@ deploy:repository:
       when: manual
   script:
     - debsign $CI_PROJECT_NAME-$CI_COMMIT_SHORT_SHA/*_multi.changes
-    - reprepro -b /var/www/html/staging include sid $CI_PROJECT_NAME-$CI_COMMIT_SHORT_SHA/*_multi.changes
+    - reprepro -b /var/www/html/staging include unstable $CI_PROJECT_NAME-$CI_COMMIT_SHORT_SHA/*_multi.changes
   stage: deploy
   tags:
     - deploy
