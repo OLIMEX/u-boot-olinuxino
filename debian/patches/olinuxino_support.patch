@@ -232,10 +232,10 @@ index 0000000000..afb2d08a6d
 +endif
 diff --git a/board/olimex/a20_olinuxino/board.c b/board/olimex/a20_olinuxino/board.c
 new file mode 100644
-index 0000000000..d8227f88e4
+index 0000000000..dde2ed79af
 --- /dev/null
 +++ b/board/olimex/a20_olinuxino/board.c
-@@ -0,0 +1,248 @@
+@@ -0,0 +1,254 @@
 +/*
 + * Copyright (C) 2020 Olimex Ltd.
 + *   Author: Stefan Mavrodiev <stefan@olimex.com>
@@ -293,13 +293,19 @@ index 0000000000..d8227f88e4
 +		printf("Error\n");
 +	}
 +
-+	printf("The board cannot be detected!\n");
-+	printf("Using \'A20-OLinuXino-LIME\' as fallback configuration.\n");
++	printf("\nWARNING: The board cannot be detected!\n");
++	printf("Please run:\n");
++	printf("\t\'olinuxino config list\' - Select your board\n");
++	printf("\t\'olinuxino config write\' - Store the board configuration\n");
++	printf("\t\'reset\' - Reset the board and load the configuration\n");
++	printf("\nUsing \'A20-OLinuXino-LIME\' as fallback configuration.\n\n");
 +
 +	eeprom->header = OLINUXINO_EEPROM_MAGIC;
 +	eeprom->id = 7739;
 +	eeprom->revision.major = 'A';
 +	eeprom->revision.minor = 0;
++	eeprom->serial = 0;
++	memset(eeprom->mac, 0xFF, 12);
 +}
 +#endif /* CONFIG_SPL_BUILD */
 +
@@ -2485,10 +2491,10 @@ index 0000000000..4094ffbf38
 +}
 diff --git a/board/olimex/common/sunxi/board.c b/board/olimex/common/sunxi/board.c
 new file mode 100644
-index 0000000000..84b7aa77a6
+index 0000000000..5511c6c121
 --- /dev/null
 +++ b/board/olimex/common/sunxi/board.c
-@@ -0,0 +1,973 @@
+@@ -0,0 +1,975 @@
 +// SPDX-License-Identifier: GPL-2.0+
 +/*
 + * (C) Copyright 2012-2013 Henrik Nordstrom <henrik@henriknordstrom.net>
@@ -3220,7 +3226,7 @@ index 0000000000..84b7aa77a6
 +	char serial_string[17] = { 0 };
 +	unsigned int sid[4];
 +	uint8_t mac_addr[6];
-+	char ethaddr[16];
++	char ethaddr[18];
 +	int i, ret;
 +	char cmd[64];
 +
@@ -3242,8 +3248,10 @@ index 0000000000..84b7aa77a6
 +
 +	/* Set board MAC */
 +	olinuxino_get_board_mac(ethaddr);
-+	sprintf(cmd,"env set -f ethaddr %s\n", ethaddr);
-+	run_command(cmd, 0);
++	if (strncmp("FF:FF:FF:FF:FF:FF", ethaddr, 17)) {
++		sprintf(cmd,"env set -f ethaddr %s\n", ethaddr);
++		run_command(cmd, 0);
++	}
 +
 +	/* Set board serial */
 +	sprintf(cmd,"env set -f serial# %08x", eeprom->serial);
