@@ -2028,10 +2028,10 @@ index 0000000000..57e6a52a76
 +);
 diff --git a/board/olimex/common/lcd_olinuxino.c b/board/olimex/common/lcd_olinuxino.c
 new file mode 100644
-index 0000000000..ae13897475
+index 0000000000..4094ffbf38
 --- /dev/null
 +++ b/board/olimex/common/lcd_olinuxino.c
-@@ -0,0 +1,446 @@
+@@ -0,0 +1,451 @@
 +/*
 + * Copyright (C) 2018 Olimex Ltd.
 + *   Author: Stefan Mavrodiev <stefan@olimex.com>
@@ -2304,7 +2304,7 @@ index 0000000000..ae13897475
 +		if (ret)
 +			return "";
 +
-+		printf("Detected %s, Rev.%s, Serial:%08x\n",
++		printf("\nDetected %s, Rev.%s, Serial:%08x\n",
 +		       lcd_olinuxino_eeprom.info.name,
 +		       lcd_olinuxino_eeprom.revision,
 +		       lcd_olinuxino_eeprom.serial);
@@ -2313,6 +2313,11 @@ index 0000000000..ae13897475
 +		info = &lcd_olinuxino_eeprom.info;
 +	}
 +
++	/**
++	 * If LCD is explicitly selected or auto-detected, make monitor=lcd as
++	 * default. This way the HDMI will not take over the console.
++	 */
++	env_set("video-mode", "sunxi:1024x768-24@60,monitor=lcd");
 +	sprintf(videomode, "x:%d,y:%d,depth:%d,pclk_khz:%d,le:%d,ri:%d,up:%d,lo:%d,hs:%d,vs:%d,sync:3,vmode:0",
 +		mode->hactive,
 +		mode->vactive,
@@ -3661,10 +3666,10 @@ index 0000000000..b0b92f988d
 +}
 diff --git a/configs/A20-OLinuXino_defconfig b/configs/A20-OLinuXino_defconfig
 new file mode 100644
-index 0000000000..d9a691306e
+index 0000000000..05df7b33af
 --- /dev/null
 +++ b/configs/A20-OLinuXino_defconfig
-@@ -0,0 +1,72 @@
+@@ -0,0 +1,76 @@
 +CONFIG_ARM=y
 +CONFIG_ARCH_SUNXI=y
 +CONFIG_NR_DRAM_BANKS=1
@@ -3737,6 +3742,10 @@ index 0000000000..d9a691306e
 +CONFIG_VIDEO_LCD_DCLK_PHASE-0
 +CONFIG_FIT_BEST_MATCH=y
 +CONFIG_SUN4I_EMAC=y
++
++CONFIG_PHY_SMSC=y
++CONFIG_PHY_MICREL=y
++CONFIG_PHY_MICREL_KSZ90X1=y
 diff --git a/configs/A64-OLinuXino_defconfig b/configs/A64-OLinuXino_defconfig
 new file mode 100644
 index 0000000000..9fa289da35
