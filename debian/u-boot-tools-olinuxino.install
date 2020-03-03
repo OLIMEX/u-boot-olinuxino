@@ -1,7 +1,7 @@
 #!/bin/sh
 
 builddir=debian/build/tools
-for tool in dumpimage mkimage mkenvimage ; do
+for tool in dumpimage mkimage mkenvimage env/fw_printenv ; do
     echo ${builddir}/tools/${tool} /usr/bin/
 done
 
@@ -9,6 +9,10 @@ done
 echo ${builddir}/config /usr/share/doc/u-boot-tools-olinuxino/
 
 echo doc/mkimage.1 /usr/share/man/man1/
+
+# manpages
+echo debian/manpages/fw_printenv.8 /usr/share/man/man8/
+echo debian/manpages/fw_setenv.8 /usr/share/man/man8/
 
 # example env configs
 for env_config in debian/env-configs/*.config tools/env/fw_env.config ; do

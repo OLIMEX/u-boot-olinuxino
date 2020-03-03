@@ -2,4 +2,7 @@
 cp board/sunxi/mksunxi_fit_atf.sh debian/build/mksunxi_fit_atf
 echo debian/build/mksunxi_fit_atf /usr/bin/
 echo debian/bin/u-boot-install /usr/bin/
+
+echo debian/manpages/u-boot-install-sunxi64.8 /usr/share/man/man8/
+
 cat "debian/build/targets"
