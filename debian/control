@@ -52,8 +52,7 @@ Package: u-boot-tools-olinuxino
 Architecture: linux-any
 Multi-Arch: foreign
 Depends: ${shlibs:Depends}, ${misc:Depends}
-Recommends: device-tree-compiler,
- libubootenv-tool,
+Recommends: device-tree-compiler
 Breaks: uboot-envtools (<< 20081215-3~),
         uboot-mkimage (<= 0.4build1),
         u-boot (<< 2010.12-2),

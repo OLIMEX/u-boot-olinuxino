@@ -55,7 +55,7 @@ build-targets:
 		cp $$builddir/.config $$builddir/config.$$platform; \
 		echo $$builddir/config.$$platform /usr/share/doc/u-boot-olinuxino/configs/ \
 			>> debian/build/targets; \
-		./scripts/get_default_envs.sh | $$builddir/tools/mkenvimage -s 16384 -o $$builddir/uboot.env; \
+		./scripts/get_default_envs.sh | $$builddir/tools/mkenvimage -r -s 131072 -p 0x00 -o $$builddir/uboot.env -; \
 		echo $$builddir/uboot.env /usr/lib/u-boot-olinuxino/$$platform/ \
 			>> debian/build/targets; \
 	done
@@ -73,6 +73,11 @@ build-tools:
 		CROSS_BUILD_TOOLS=$(cross_build_tools) \
 		NO_SDL=1 \
 	    tools-only
+	$(MAKE) V=$(VERBOSE) O=$(TOOLSDIR) $(DEB_UBOOT_FLAGS) \
+		CROSS_COMPILE=$(CROSS_COMPILE) \
+		NO_SDL=1 \
+	    envtools
+	$(CROSS_COMPILE)strip --strip-unneeded --remove-section=.comment --remove-section=.note $(TOOLSDIR)/tools/env/fw_printenv
 	$(CROSS_COMPILE)strip --strip-unneeded --remove-section=.comment --remove-section=.note $(TOOLSDIR)/tools/mkimage
 	$(CROSS_COMPILE)strip --strip-unneeded --remove-section=.comment --remove-section=.note $(TOOLSDIR)/tools/mkenvimage
 	$(CROSS_COMPILE)strip --strip-unneeded --remove-section=.comment --remove-section=.note $(TOOLSDIR)/tools/dumpimage
