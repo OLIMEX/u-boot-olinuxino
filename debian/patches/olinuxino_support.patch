@@ -2491,10 +2491,10 @@ index 0000000000..4094ffbf38
 +}
 diff --git a/board/olimex/common/sunxi/board.c b/board/olimex/common/sunxi/board.c
 new file mode 100644
-index 0000000000..5511c6c121
+index 0000000000..89f1a59a97
 --- /dev/null
 +++ b/board/olimex/common/sunxi/board.c
-@@ -0,0 +1,975 @@
+@@ -0,0 +1,1011 @@
 +// SPDX-License-Identifier: GPL-2.0+
 +/*
 + * (C) Copyright 2012-2013 Henrik Nordstrom <henrik@henriknordstrom.net>
@@ -2542,6 +2542,7 @@ index 0000000000..5511c6c121
 +#include <fdt_support.h>
 +
 +#include <olimex/boards.h>
++#include <olimex/lcd_olinuxino.h>
 +#include <olimex/sys_eeprom.h>
 +
 +DECLARE_GLOBAL_DATA_PTR;
@@ -3360,6 +3361,22 @@ index 0000000000..5511c6c121
 +}
 +
 +#ifdef CONFIG_OF_LIBFDT_OVERLAY
++static int olinuxino_load_overlay(void *blob, char *overlay)
++{
++	char cmd[128];
++	int ret;
++
++	printf("Applying overlay: \'%s\'...\n", overlay);
++
++	/* Load file */
++	sprintf(cmd, "load mmc 0 0x4fc00000 %s", overlay);
++	ret = run_command(cmd, 0);
++	if (ret)
++		printf("Failed to load overlay.\n");
++
++	return ret;
++}
++
 +static void olinuxino_load_overlays(void *blob)
 +{
 +	int ret;
@@ -3391,15 +3408,9 @@ index 0000000000..5511c6c121
 +	}
 +
 +	while (overlay) {
-+		printf("Applying overlay: \'%s\'...\n", overlay);
-+
-+		/* Load file */
-+		sprintf(cmd, "load mmc 0 0x4fc00000 %s", overlay);
-+		ret = run_command(cmd, 0);
-+		if (ret) {
-+			printf("Failed to load overlay.\n");
++		ret = olinuxino_load_overlay(blob, overlay);
++		if (ret)
 +			goto err;
-+		}
 +
 +		/* Apply */
 +		ret = run_command("fdt apply 0x4fc00000", 0);
@@ -3413,6 +3424,31 @@ index 0000000000..5511c6c121
 +		}
 +err:
 +		overlay = strtok(NULL, " ");
++	}
++
++	/**
++	 * If LCD-OLinuXino is detected, check if there are any overlays
++	 * set in the environmet. If so, try to load them
++	 */
++	if (!lcd_olinuxino_is_present())
++		return;
++
++	sprintf(cmd, "lcd_olinuxino_%d", lcd_olinuxino_eeprom.id);
++	overlay = env_get(cmd);
++	if (overlay) {
++		ret = olinuxino_load_overlay(blob, overlay);
++		if (ret)
++			return;
++
++		/* Apply */
++		ret = run_command("fdt apply 0x4fc00000", 0);
++		if (ret) {
++			printf("Failed to apply overlay.\n");
++
++			printf("Restoring the original FDT blob...\n");
++			memcpy(blob, backup, fdt_totalsize(backup));
++			fdt_set_totalsize(blob, fdt_totalsize(backup));
++		}
 +	}
 +}
 +#else
