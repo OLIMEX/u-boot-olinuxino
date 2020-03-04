@@ -232,10 +232,10 @@ index 0000000000..afb2d08a6d
 +endif
 diff --git a/board/olimex/a20_olinuxino/board.c b/board/olimex/a20_olinuxino/board.c
 new file mode 100644
-index 0000000000..dde2ed79af
+index 0000000000..3a6380cf51
 --- /dev/null
 +++ b/board/olimex/a20_olinuxino/board.c
-@@ -0,0 +1,254 @@
+@@ -0,0 +1,256 @@
 +/*
 + * Copyright (C) 2020 Olimex Ltd.
 + *   Author: Stefan Mavrodiev <stefan@olimex.com>
@@ -396,6 +396,7 @@ index 0000000000..dde2ed79af
 +{
 +	switch (sunxi_get_boot_device()) {
 +	case BOOT_DEVICE_BOARD:
++	case BOOT_DEVICE_SPI:
 +		if (eeprom->config.storage == 'e')
 +			return "1:auto";
 +		else
@@ -415,6 +416,7 @@ index 0000000000..dde2ed79af
 +{
 +	switch (sunxi_get_boot_device()) {
 +	case BOOT_DEVICE_BOARD:
++	case BOOT_DEVICE_SPI:
 +		if (eeprom->config.storage == 'e')
 +			return "1:auto";
 +		else
