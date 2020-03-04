@@ -38,6 +38,11 @@ test:a64-olinuxino:
   <<: *test_common
 
 package:source:
+  artifacts:
+    name: "$CI_PROJECT_NAME-source.$CI_COMMIT_SHORT_SHA"
+    paths:
+      - $CI_PROJECT_NAME-source.$CI_COMMIT_SHORT_SHA/*
+    when: on_success
   before_script:
     - rm -vf ../u-boot-*olinuxino_* || true
     - git checkout -B "$CI_BUILD_REF_NAME" "$CI_BUILD_REF"
@@ -45,35 +50,55 @@ package:source:
     - gbp export-orig --upstream-tree=$UBOOT_RELEASE
   script:
     - dpkg-buildpackage --post-clean -S -i -I
+    - mkdir $CI_PROJECT_NAME-source.$CI_COMMIT_SHORT_SHA
+    - mv -vf ../u-boot-*olinuxino_*.* $CI_PROJECT_NAME-source.$CI_COMMIT_SHORT_SHA/
   stage: source
 
 package:armhf:
-  variables:
-    ARCH: armhf
+  artifacts:
+    name: "$CI_PROJECT_NAME-armhf.$CI_COMMIT_SHORT_SHA"
+    paths:
+      - $CI_PROJECT_NAME-armhf.$CI_COMMIT_SHORT_SHA/*
+    when: on_success
   before_script:
+    - rm -vf ../u-boot-*olinuxino_* || true
     - dpkg --add-architecture $ARCH
     - apt-get update && apt-get install -y --no-install-recommends lzop:armhf libc6:armhf
-    - git checkout -B "$CI_BUILD_REF_NAME" "$CI_BUILD_REF"
-    - git fetch origin +refs/tags/$UBOOT_RELEASE:refs/tags/$UBOOT_RELEASE
+    - cp -v $CI_PROJECT_NAME-source.$CI_COMMIT_SHORT_SHA/u-boot-*olinuxino_*.orig.tar.gz ../
+    - rm -rvf $CI_PROJECT_NAME-source.$CI_COMMIT_SHORT_SHA
   needs:
     - "package:source"
   script:
     - DEB_BUILD_OPTIONS=parallel=$(nproc) dpkg-buildpackage --post-clean --no-sign -a$ARCH -i -I -b
+    - mkdir $CI_PROJECT_NAME-armhf.$CI_COMMIT_SHORT_SHA
+    - rm -vf ../u-boot-*olinuxino_*.orig.tar.gz
+    - mv -vf ../u-boot-*olinuxino_*.* $CI_PROJECT_NAME-armhf.$CI_COMMIT_SHORT_SHA/
   stage: binary
+  variables:
+    ARCH: armhf
 
 package:arm64:
-  variables:
-    ARCH: arm64
+  artifacts:
+    name: "$CI_PROJECT_NAME-arm64.$CI_COMMIT_SHORT_SHA"
+    paths:
+      - $CI_PROJECT_NAME-arm64.$CI_COMMIT_SHORT_SHA/*
+    when: on_success
   before_script:
+    - rm -vf ../u-boot-*olinuxino_* || true
     - dpkg --add-architecture $ARCH
     - apt-get update && apt-get install -y --no-install-recommends libc6:arm64
-    - git checkout -B "$CI_BUILD_REF_NAME" "$CI_BUILD_REF"
-    - git fetch origin +refs/tags/$UBOOT_RELEASE:refs/tags/$UBOOT_RELEASE
+    - cp -v $CI_PROJECT_NAME-source.$CI_COMMIT_SHORT_SHA/u-boot-*olinuxino_*.orig.tar.gz ../
+    - rm -rvf $CI_PROJECT_NAME-source.$CI_COMMIT_SHORT_SHA
   needs:
     - "package:source"
   script:
     - DEB_BUILD_OPTIONS=parallel=$(nproc) dpkg-buildpackage --post-clean --no-sign -a$ARCH -i -I -b
+    - mkdir $CI_PROJECT_NAME-arm64.$CI_COMMIT_SHORT_SHA
+    - rm -vf ../u-boot-*olinuxino_*.orig.tar.gz
+    - mv -vf ../u-boot-*olinuxino_*.* $CI_PROJECT_NAME-arm64.$CI_COMMIT_SHORT_SHA/
   stage: binary
+  variables:
+    ARCH: arm64
 
 package:merge:
   artifacts:
@@ -81,7 +106,8 @@ package:merge:
     paths:
       - $CI_PROJECT_NAME-$CI_COMMIT_SHORT_SHA/*
   script:
-    - mkdir $CI_PROJECT_NAME-$CI_COMMIT_SHORT_SHA && mv -v ../u-boot-*olinuxino_*.* $CI_PROJECT_NAME-$CI_COMMIT_SHORT_SHA/
+    - mkdir $CI_PROJECT_NAME-$CI_COMMIT_SHORT_SHA
+    - cp -vf $CI_PROJECT_NAME-*.$CI_COMMIT_SHORT_SHA/* $CI_PROJECT_NAME-$CI_COMMIT_SHORT_SHA/
     - mergechanges -f $CI_PROJECT_NAME-$CI_COMMIT_SHORT_SHA/*.changes
   stage: merge
 
