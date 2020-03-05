@@ -3664,16 +3664,17 @@ index 0000000000..b0b92f988d
 +}
 diff --git a/configs/A20-OLinuXino_defconfig b/configs/A20-OLinuXino_defconfig
 new file mode 100644
-index 0000000000..c8f96e001b
+index 0000000000..0f6dedb63f
 --- /dev/null
 +++ b/configs/A20-OLinuXino_defconfig
-@@ -0,0 +1,69 @@
+@@ -0,0 +1,70 @@
 +CONFIG_ARM=y
 +CONFIG_ARCH_SUNXI=y
 +CONFIG_NR_DRAM_BANKS=1
 +CONFIG_SPL=y
 +CONFIG_MACH_SUN7I=y
 +CONFIG_DRAM_CLK=384
++CONFIG_MMC_SUNXI_SLOT_EXTRA=2
 +CONFIG_AHCI=y
 +# CONFIG_SYS_MALLOC_CLEAR_ON_INIT is not set
 +CONFIG_USE_PREBOOT=y
