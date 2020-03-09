@@ -2445,7 +2445,7 @@ index 0000000000..4094ffbf38
 +}
 diff --git a/board/olimex/common/sunxi/board.c b/board/olimex/common/sunxi/board.c
 new file mode 100644
-index 0000000000..89f1a59a97
+index 0000000000..c84b84d310
 --- /dev/null
 +++ b/board/olimex/common/sunxi/board.c
 @@ -0,0 +1,1011 @@
@@ -3323,7 +3323,7 @@ index 0000000000..89f1a59a97
 +	printf("Applying overlay: \'%s\'...\n", overlay);
 +
 +	/* Load file */
-+	sprintf(cmd, "load mmc 0 0x4fc00000 %s", overlay);
++	sprintf(cmd, "load mmc ${mmc_bootdev} 0x4fc00000 %s", overlay);
 +	ret = run_command(cmd, 0);
 +	if (ret)
 +		printf("Failed to load overlay.\n");
