@@ -1,81 +1,161 @@
-#!/bin/sh
+#!/bin/bash
 set -e
 
-dtmodel="/sys/firmware/devicetree/base/model"
-if [ -z "$TARGET" ] && [ -f "${dtmodel}" ]; then
-	case $(cat "${dtmodel}" | tr '\0' '\n') in
-		"Olimex A64-Olinuxino") TARGET="/usr/lib/u-boot/a64-olinuxino/" ;;
-		"Olimex A64-Olinuxino-eMMC") TARGET="/usr/lib/u-boot/a64-olinuxino/" ;;
+function get_root_device
+{
+	local UUID=""
+
+	for arg in $(cat /proc/cmdline); do
+		case $arg in
+		"root="*)
+			UUID=${arg#root=}
+			break
+			;;
+
+		*)
+			;;
+
+		esac
+	done
+	[[ -z ${UUID} ]] && return ""
+
+	local PARTITION=$(blkid | grep "${UUID#PARTUUID=}" | cut -d':' -f1)
+	[[ -z ${PARTITION} ]] && return ""
+
+	# The following doesn't work on debian sid.
+	DEVICE=$(lsblk -n -o PKNAME "${PARTITION}" | head -n1)
+
+	# Try regex expression
+	if [[ -z ${DEVICE} ]]; then
+		[[ ${PARTITION} =~ "/dev/mmcblk"[0-9]+ ]] || \
+		[[ ${PARTITION} =~ "/dev/sd"[a-z] ]] && \
+		DEVICE=${BASH_REMATCH[0]}
+	else
+		DEVICE="/dev/${DEVICE}"
+	fi
+
+	echo ${DEVICE}
+}
+
+function install_sunxi
+{
+	DEV=$1
+	TARGET="/usr/lib/u-boot-olinuxino/${TARGET}/u-boot-sunxi-with-spl.bin"
+
+	if [[ ! -e ${TARGET} ]]; then
+		echo >&2 "$0: the file \'${TARGET}\' is missing"
+		exit 1
+	fi
+
+	# Try to detect the root device
+	if [[ -z ${DEV} ]]; then
+		DEV=$(get_root_device)
+		if [[ -z ${DEV} ]]; then
+			echo >&2 "$0: failed to detect the root device"
+			exit 1
+		fi
+	fi
+
+	if [[ ! -w ${DEV} ]]; then
+		echo >&2 "$0: device/image ($DEV) must be writable"
+		exit 1
+	fi
+
+	DEV=$(readlink -f ${DEV})
+
+	echo "Writing u-boot-sunxi-with-spl"
+	if [[ -c ${DEV} ]] && [[ ${DEV} == "/dev/mtd"* ]]; then
+		flashcp ${TARGET} ${DEV}
+	else
+		dd if=${TARGET} of=${DEV} bs=1k seek=8 conv=notrunc
+	fi
+
+}
+
+function install_sunxi64
+{
+	ATF="/usr/lib/arm-trusted-firmware/sun50i_a64/bl31.bin"
+	if [[ -z "$BL31" ]] && [[ -f "${ATF}" ]]; then
+		BL31="${atf}"
+	fi
+
+	BL31=${BL31:-"/usr/lib/arm-trusted-firmware-olinuxino/sun50i_a64/bl31.bin"}
+	FIT_GENERATOR=${FIT_GENERATOR:-"mksunxi_fit_atf"}
+
+
+	if [[ -z "$(which mkimage)" ]]; then
+		echo >&2 "$0: mkimage: command not found. Please install u-boot-tools-olinuxino."
+		exit 1
+	fi
+
+	DEV=$1
+	# Try to detect the root device
+	if [[ -z ${DEV} ]]; then
+		DEV=$(get_root_device)
+		if [[ -z ${DEV} ]]; then
+			echo >&2 "$0: failed to detect the root device"
+			exit 1
+		fi
+	fi
+
+	if [[ ! -w ${DEV} ]]; then
+		echo >&2 "$0: device/image (${DEV}) must be writable"
+		exit 1
+	fi
+
+	DEV=$(readlink -f ${DEV})
+	BOARD=${TARGET}
+	TARGET="/usr/lib/u-boot-olinuxino/${TARGET}"
+
+	DIR=$(mktemp -d)
+	trap 'rm -rf "${DIR}"' 0
+
+	cd ${DIR}
+
+	zcat "/usr/share/doc/u-boot-olinuxino/configs/config.${BOARD}.gz" > .config
+	cp -p ${TARGET}/*.dtb ${TARGET}/*.bin .
+	BL31=${BL31} ${FIT_GENERATOR} *.dtb > u-boot.its
+	mkimage -f u-boot.its u-boot.itb
+
+	echo "Writing sunxi-spl"
+	dd if=sunxi-spl.bin of=${DEV} bs=1k seek=8 conv=notrunc
+
+	echo "Writing u-boot FIT image"
+	dd if=u-boot.itb of=${DEV} bs=1k seek=40 conv=notrunc
+	sync ${DEV}
+}
+
+# Detect family
+for comp in $(cat "/proc/device-tree/compatible" | tr '\0' '\n'); do
+	if [[ "${comp}" == "allwinner,sun"* ]]; then
+		soc=$(cut -d',' -f2 <<< ${comp})
+	elif [[ "${comp}" == "olimex,"* ]]; then
+		board="${comp}"
+	fi
+done
+
+if [[ -z "${TARGET}" ]]; then
+	case ${soc} in
+		"sun5i-a13")
+			TARGET="a13-olinuxino"
+			INSTALL_FUNC=install_sunxi
+			;;
+
+		"sun7i-a20")
+			TARGET="a20-olinuxino"
+			INSTALL_FUNC=install_sunxi
+			;;
+
+		"sun50i-a64")
+			TARGET="a64-olinuxino"
+			INSTALL_FUNC=install_sunxi64
+			;;
+
+		*)
+			echo >&2 "$0: Unsupported sunxi family: ${soc}."
+			exit 1;
+			;;
 	esac
 fi
 
-atf="/usr/lib/arm-trusted-firmware/sun50i_a64/bl31.bin"
-if [ -z "$BL31" ] && [ -f "${atf}" ]; then
-	BL31="${atf}"
-fi
-
-TARGET=${TARGET:-"/usr/lib/u-boot/a64-olinuxino/"}
-BL31=${BL31:-"/usr/lib/arm-trusted-firmware/sun50i_a64/bl31.bin"}
-FIT_GENERATOR=${FIT_GENERATOR:-"mksunxi_fit_atf"}
-
-case "$1" in
-	-f|--force)
-		FORCE=y
-		shift;;
-	-*)
-		echo >&2 "$0: unknown option '$1'"
-		exit 1;;
-esac
-
-if [ -z "$(which mkimage)" ]; then
-	echo >&2 "$0: mkimage: command not found. Please install u-boot-tools."
-	exit 1
-fi
-
-DEV="$1"
-if [ -z "$DEV" ] || ! shift || [ -n "$*" ]; then
-	echo >&2 "Usage: $0 /dev/your-sd-or-mmc-or-image"
-	exit 1
-fi
-
-if [ ! -w "$DEV" ] && [ -z "$FORCE" ]; then
-	echo >&2 "$0: device/image ($DEV) must be writable"
-	exit 1
-fi
-DEV="$(readlink -f "$DEV")"
-DIR="$(mktemp -d)"
-trap 'rm -rf "$DIR"' 0
-# Build tools get confused by paths, thus let's copy all the pieces into
-# one dir.
-
-if [ ! -w "$DEV" ] && [ -z "$FORCE" ]; then
-	echo >&2 "$0: device/image ($DEV) not accessible via abs path?!?"
-	exit 1
-fi
-
-cd "$DIR"
-if [ -z "$FORCE" ]; then
-	# A very simple sanity check.  GPT mandates a "protective MBR" so this works
-	# even with GPT partitioning.
-	printf '%b' '\0125\0252' >mbr-sign
-	if ! cmp -s -i 0:510 -n 2 mbr-sign "$DEV"; then
-		echo >&2 "$0: device/image ($DEV) has no MBR partition table"
-		exit 1
-	fi
-
-	# But, on sunxi64, spl will trample upon GPT.
-	printf "EFI PART" >gpt-sign
-	if cmp -s -i 0:512 -n 8 gpt-sign "$DEV"; then
-		echo >&2 "$0: device/image ($DEV) uses GPT partition table, unusable on sunxi64"
-		exit 1
-	fi
-fi
-
-cp -p $TARGET/*.dtb $TARGET/*.bin .
-BL31=$BL31 $FIT_GENERATOR *.dtb > u-boot.its
-mkimage -f u-boot.its u-boot.itb
-echo "Writing sunxi-spl"
-dd conv=notrunc if=sunxi-spl.bin of="$DEV" bs=8k seek=1
-echo "Writing u-boot FIT image"
-dd conv=notrunc if=u-boot.itb of="$DEV" bs=8k seek=5
-sync "$DEV"
+${INSTALL_FUNC} $@
