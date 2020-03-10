@@ -1,0 +1,1039 @@
+From bbeaefeaaa41f52630e46e051f9ad914e05c7056 Mon Sep 17 00:00:00 2001
+From: hehopmajieh <hehopmajieh@debian.bg>
+Date: Tue, 10 Mar 2020 15:16:46 +0200
+Subject: [PATCH] a13 boards auto detect
+
+---
+ arch/arm/dts/Makefile                  |   2 +
+ arch/arm/dts/sun5i-a13-som-256.dts     | 181 ++++++++++++++++++++++++
+ arch/arm/dts/sun5i-a13-som-512.dts     | 181 ++++++++++++++++++++++++
+ arch/arm/mach-sunxi/Kconfig            |  24 +++-
+ board/olimex/a13_olinuxino/Kconfig     |  10 ++
+ board/olimex/a13_olinuxino/MAINTAINERS |   5 +
+ board/olimex/a13_olinuxino/Makefile    |  18 +++
+ board/olimex/a13_olinuxino/board.c     | 187 +++++++++++++++++++++++++
+ board/olimex/a13_olinuxino/fdt.c       | 144 +++++++++++++++++++
+ board/olimex/a13_olinuxino/gmac.c      |  69 +++++++++
+ board/olimex/common/boards.c           |  15 ++
+ board/olimex/common/sunxi/board.c      |   3 +
+ configs/A13-OLinuXino_defconfig        |  16 ++-
+ include/configs/a13_olinuxino.h        |  12 ++
+ 14 files changed, 865 insertions(+), 2 deletions(-)
+ create mode 100644 arch/arm/dts/sun5i-a13-som-256.dts
+ create mode 100644 arch/arm/dts/sun5i-a13-som-512.dts
+ create mode 100644 board/olimex/a13_olinuxino/Kconfig
+ create mode 100644 board/olimex/a13_olinuxino/MAINTAINERS
+ create mode 100644 board/olimex/a13_olinuxino/Makefile
+ create mode 100644 board/olimex/a13_olinuxino/board.c
+ create mode 100644 board/olimex/a13_olinuxino/fdt.c
+ create mode 100644 board/olimex/a13_olinuxino/gmac.c
+ create mode 100644 include/configs/a13_olinuxino.h
+
+diff --git a/arch/arm/dts/Makefile b/arch/arm/dts/Makefile
+index 6f83598011..b0255014c5 100644
+--- a/arch/arm/dts/Makefile
++++ b/arch/arm/dts/Makefile
+@@ -434,6 +434,8 @@ dtb-$(CONFIG_MACH_SUN5I) += \
+ 	sun5i-a13-inet-98v-rev2.dtb \
+ 	sun5i-a13-olinuxino.dtb \
+ 	sun5i-a13-olinuxino-micro.dtb \
++	sun5i-a13-som-256.dtb \
++	sun5i-a13-som-512.dtb \
+ 	sun5i-a13-q8-tablet.dtb \
+ 	sun5i-a13-utoo-p66.dtb \
+ 	sun5i-gr8-chip-pro.dtb \
+diff --git a/arch/arm/dts/sun5i-a13-som-256.dts b/arch/arm/dts/sun5i-a13-som-256.dts
+new file mode 100644
+index 0000000000..eee10600a3
+--- /dev/null
++++ b/arch/arm/dts/sun5i-a13-som-256.dts
+@@ -0,0 +1,181 @@
++/*
++ * Copyright 2012 Maxime Ripard <maxime.ripard@free-electrons.com>
++ * Copyright 2013 Hans de Goede <hdegoede@redhat.com>
++ *
++ * This file is dual-licensed: you can use it either under the terms
++ * of the GPL or the X11 license, at your option. Note that this dual
++ * licensing only applies to this file, and not this project as a
++ * whole.
++ *
++ *  a) This file is free software; you can redistribute it and/or
++ *     modify it under the terms of the GNU General Public License as
++ *     published by the Free Software Foundation; either version 2 of the
++ *     License, or (at your option) any later version.
++ *
++ *     This file is distributed in the hope that it will be useful,
++ *     but WITHOUT ANY WARRANTY; without even the implied warranty of
++ *     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ *     GNU General Public License for more details.
++ *
++ * Or, alternatively,
++ *
++ *  b) Permission is hereby granted, free of charge, to any person
++ *     obtaining a copy of this software and associated documentation
++ *     files (the "Software"), to deal in the Software without
++ *     restriction, including without limitation the rights to use,
++ *     copy, modify, merge, publish, distribute, sublicense, and/or
++ *     sell copies of the Software, and to permit persons to whom the
++ *     Software is furnished to do so, subject to the following
++ *     conditions:
++ *
++ *     The above copyright notice and this permission notice shall be
++ *     included in all copies or substantial portions of the Software.
++ *
++ *     THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
++ *     EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
++ *     OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
++ *     NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
++ *     HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
++ *     WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
++ *     FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
++ *     OTHER DEALINGS IN THE SOFTWARE.
++ */
++
++/dts-v1/;
++#include "sun5i-a13.dtsi"
++#include "sunxi-common-regulators.dtsi"
++
++#include <dt-bindings/gpio/gpio.h>
++
++/ {
++	model = "Olimex A13-SOM 256M";
++	compatible = "olimex,a13-som-256", "allwinner,sun5i-a13";
++
++	aliases {
++		serial0 = &uart1;
++	};
++
++	chosen {
++		stdout-path = "serial0:115200n8";
++	};
++
++	leds {
++		compatible = "gpio-leds";
++		pinctrl-names = "default";
++		pinctrl-0 = <&led_pins_olinuxinom>;
++
++		power {
++			label = "a13-olinuxino-micro:green:power";
++			gpios = <&pio 6 9 GPIO_ACTIVE_HIGH>;
++			default-state = "on";
++		};
++	};
++};
++
++&ehci0 {
++	status = "okay";
++};
++
++&i2c0 {
++	pinctrl-names = "default";
++	pinctrl-0 = <&i2c0_pins_a>;
++	status = "okay";
++};
++
++&i2c1 {
++	pinctrl-names = "default";
++	pinctrl-0 = <&i2c1_pins_a>;
++	status = "okay";
++};
++
++&i2c2 {
++	pinctrl-names = "default";
++	pinctrl-0 = <&i2c2_pins_a>;
++	status = "okay";
++};
++
++&mmc0 {
++	pinctrl-names = "default";
++	pinctrl-0 = <&mmc0_pins_a>, <&mmc0_cd_pin_olinuxinom>;
++	vmmc-supply = <&reg_vcc3v3>;
++	bus-width = <4>;
++	cd-gpios = <&pio 6 0 GPIO_ACTIVE_LOW>; /* PG0 */
++	status = "okay";
++};
++
++&ohci0 {
++	status = "okay";
++};
++
++&otg_sram {
++	status = "okay";
++};
++
++&pio {
++	mmc0_cd_pin_olinuxinom: mmc0_cd_pin@0 {
++		pins = "PG0";
++		function = "gpio_in";
++		bias-pull-up;
++	};
++
++	led_pins_olinuxinom: led_pins@0 {
++		pins = "PG9";
++		function = "gpio_out";
++		drive-strength = <20>;
++	};
++
++	usb0_id_detect_pin: usb0_id_detect_pin@0 {
++		pins = "PG2";
++		function = "gpio_in";
++		bias-pull-up;
++	};
++
++	usb0_vbus_detect_pin: usb0_vbus_detect_pin@0 {
++		pins = "PG1";
++		function = "gpio_in";
++		bias-pull-down;
++	};
++
++	usb0_vbus_pin_olinuxinom: usb0_vbus_pin@0 {
++		pins = "PG12";
++		function = "gpio_out";
++	};
++
++	usb1_vbus_pin_olinuxinom: usb1_vbus_pin@0 {
++		pins = "PG11";
++		function = "gpio_out";
++	};
++};
++
++&reg_usb0_vbus {
++	pinctrl-0 = <&usb0_vbus_pin_olinuxinom>;
++	gpio = <&pio 6 12 GPIO_ACTIVE_HIGH>;
++	status = "okay";
++};
++
++&reg_usb1_vbus {
++	pinctrl-0 = <&usb1_vbus_pin_olinuxinom>;
++	gpio = <&pio 6 11 GPIO_ACTIVE_HIGH>;
++	status = "okay";
++};
++
++&uart1 {
++	pinctrl-names = "default";
++	pinctrl-0 = <&uart1_pins_b>;
++	status = "okay";
++};
++
++&usb_otg {
++	dr_mode = "otg";
++	status = "okay";
++};
++
++&usbphy {
++	pinctrl-names = "default";
++	pinctrl-0 = <&usb0_id_detect_pin>, <&usb0_vbus_detect_pin>;
++	usb0_id_det-gpio = <&pio 6 2 GPIO_ACTIVE_HIGH>; /* PG2 */
++	usb0_vbus_det-gpio = <&pio 6 1 GPIO_ACTIVE_HIGH>; /* PG1 */
++	usb0_vbus-supply = <&reg_usb0_vbus>;
++	usb1_vbus-supply = <&reg_usb1_vbus>;
++	status = "okay";
++};
+diff --git a/arch/arm/dts/sun5i-a13-som-512.dts b/arch/arm/dts/sun5i-a13-som-512.dts
+new file mode 100644
+index 0000000000..7437ecb077
+--- /dev/null
++++ b/arch/arm/dts/sun5i-a13-som-512.dts
+@@ -0,0 +1,181 @@
++/*
++ * Copyright 2012 Maxime Ripard <maxime.ripard@free-electrons.com>
++ * Copyright 2013 Hans de Goede <hdegoede@redhat.com>
++ *
++ * This file is dual-licensed: you can use it either under the terms
++ * of the GPL or the X11 license, at your option. Note that this dual
++ * licensing only applies to this file, and not this project as a
++ * whole.
++ *
++ *  a) This file is free software; you can redistribute it and/or
++ *     modify it under the terms of the GNU General Public License as
++ *     published by the Free Software Foundation; either version 2 of the
++ *     License, or (at your option) any later version.
++ *
++ *     This file is distributed in the hope that it will be useful,
++ *     but WITHOUT ANY WARRANTY; without even the implied warranty of
++ *     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ *     GNU General Public License for more details.
++ *
++ * Or, alternatively,
++ *
++ *  b) Permission is hereby granted, free of charge, to any person
++ *     obtaining a copy of this software and associated documentation
++ *     files (the "Software"), to deal in the Software without
++ *     restriction, including without limitation the rights to use,
++ *     copy, modify, merge, publish, distribute, sublicense, and/or
++ *     sell copies of the Software, and to permit persons to whom the
++ *     Software is furnished to do so, subject to the following
++ *     conditions:
++ *
++ *     The above copyright notice and this permission notice shall be
++ *     included in all copies or substantial portions of the Software.
++ *
++ *     THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
++ *     EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
++ *     OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
++ *     NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
++ *     HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
++ *     WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
++ *     FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
++ *     OTHER DEALINGS IN THE SOFTWARE.
++ */
++
++/dts-v1/;
++#include "sun5i-a13.dtsi"
++#include "sunxi-common-regulators.dtsi"
++
++#include <dt-bindings/gpio/gpio.h>
++
++/ {
++	model = "Olimex A13-SOM 512M";
++	compatible = "olimex,a13-som-512", "allwinner,sun5i-a13";
++
++	aliases {
++		serial0 = &uart1;
++	};
++
++	chosen {
++		stdout-path = "serial0:115200n8";
++	};
++
++	leds {
++		compatible = "gpio-leds";
++		pinctrl-names = "default";
++		pinctrl-0 = <&led_pins_olinuxinom>;
++
++		power {
++			label = "a13-olinuxino-micro:green:power";
++			gpios = <&pio 6 9 GPIO_ACTIVE_HIGH>;
++			default-state = "on";
++		};
++	};
++};
++
++&ehci0 {
++	status = "okay";
++};
++
++&i2c0 {
++	pinctrl-names = "default";
++	pinctrl-0 = <&i2c0_pins_a>;
++	status = "okay";
++};
++
++&i2c1 {
++	pinctrl-names = "default";
++	pinctrl-0 = <&i2c1_pins_a>;
++	status = "okay";
++};
++
++&i2c2 {
++	pinctrl-names = "default";
++	pinctrl-0 = <&i2c2_pins_a>;
++	status = "okay";
++};
++
++&mmc0 {
++	pinctrl-names = "default";
++	pinctrl-0 = <&mmc0_pins_a>, <&mmc0_cd_pin_olinuxinom>;
++	vmmc-supply = <&reg_vcc3v3>;
++	bus-width = <4>;
++	cd-gpios = <&pio 6 0 GPIO_ACTIVE_LOW>; /* PG0 */
++	status = "okay";
++};
++
++&ohci0 {
++	status = "okay";
++};
++
++&otg_sram {
++	status = "okay";
++};
++
++&pio {
++	mmc0_cd_pin_olinuxinom: mmc0_cd_pin@0 {
++		pins = "PG0";
++		function = "gpio_in";
++		bias-pull-up;
++	};
++
++	led_pins_olinuxinom: led_pins@0 {
++		pins = "PG9";
++		function = "gpio_out";
++		drive-strength = <20>;
++	};
++
++	usb0_id_detect_pin: usb0_id_detect_pin@0 {
++		pins = "PG2";
++		function = "gpio_in";
++		bias-pull-up;
++	};
++
++	usb0_vbus_detect_pin: usb0_vbus_detect_pin@0 {
++		pins = "PG1";
++		function = "gpio_in";
++		bias-pull-down;
++	};
++
++	usb0_vbus_pin_olinuxinom: usb0_vbus_pin@0 {
++		pins = "PG12";
++		function = "gpio_out";
++	};
++
++	usb1_vbus_pin_olinuxinom: usb1_vbus_pin@0 {
++		pins = "PG11";
++		function = "gpio_out";
++	};
++};
++
++&reg_usb0_vbus {
++	pinctrl-0 = <&usb0_vbus_pin_olinuxinom>;
++	gpio = <&pio 6 12 GPIO_ACTIVE_HIGH>;
++	status = "okay";
++};
++
++&reg_usb1_vbus {
++	pinctrl-0 = <&usb1_vbus_pin_olinuxinom>;
++	gpio = <&pio 6 11 GPIO_ACTIVE_HIGH>;
++	status = "okay";
++};
++
++&uart1 {
++	pinctrl-names = "default";
++	pinctrl-0 = <&uart1_pins_b>;
++	status = "okay";
++};
++
++&usb_otg {
++	dr_mode = "otg";
++	status = "okay";
++};
++
++&usbphy {
++	pinctrl-names = "default";
++	pinctrl-0 = <&usb0_id_detect_pin>, <&usb0_vbus_detect_pin>;
++	usb0_id_det-gpio = <&pio 6 2 GPIO_ACTIVE_HIGH>; /* PG2 */
++	usb0_vbus_det-gpio = <&pio 6 1 GPIO_ACTIVE_HIGH>; /* PG1 */
++	usb0_vbus-supply = <&reg_usb0_vbus>;
++	usb1_vbus-supply = <&reg_usb1_vbus>;
++	status = "okay";
++};
+diff --git a/arch/arm/mach-sunxi/Kconfig b/arch/arm/mach-sunxi/Kconfig
+index 5011857078..ba55d59eff 100644
+--- a/arch/arm/mach-sunxi/Kconfig
++++ b/arch/arm/mach-sunxi/Kconfig
+@@ -340,6 +340,24 @@ config TARGET_A20_OLINUXINO
+ endchoice
+ endif
+ 
++if MACH_SUN5I
++choice
++        prompt "SUNXI profile select"
++
++config TARGET_SUN5I_DEFAULT
++        bool "Default sunxi target"
++        ---help---
++        Use the default profile for sunxi boards
++
++config TARGET_A13_OLINUXINO
++        bool "A13-OLinuXino board"
++        select I2C1_ENABLE
++        ---help---
++        Use board autodetection feature on A13-OLinuXino boards
++
++endchoice
++endif
++
+ if MACH_SUN50I
+ choice
+ 	prompt "SUNXI profile select"
+@@ -580,7 +598,7 @@ config SYS_CLK_FREQ
+ 	default 1008000000 if MACH_SUN9I
+ 	default 888000000 if MACH_SUN50I_H6
+ 
+-if !TARGET_A20_OLINUXINO && !TARGET_A64_OLINUXINO
++if !TARGET_A20_OLINUXINO && !TARGET_A64_OLINUXINO && !TARGET_A13_OLINUXINO
+ config SYS_CONFIG_NAME
+ 	default "sun4i" if MACH_SUN4I
+ 	default "sun5i" if MACH_SUN5I
+@@ -602,6 +620,10 @@ if TARGET_A20_OLINUXINO
+ 	source "board/olimex/a20_olinuxino/Kconfig"
+ endif
+ 
++if TARGET_A13_OLINUXINO
++        source "board/olimex/a13_olinuxino/Kconfig"
++endif
++
+ if TARGET_A64_OLINUXINO
+ 	source "board/olimex/a64_olinuxino/Kconfig"
+ endif
+diff --git a/board/olimex/a13_olinuxino/Kconfig b/board/olimex/a13_olinuxino/Kconfig
+new file mode 100644
+index 0000000000..f88c7a46f4
+--- /dev/null
++++ b/board/olimex/a13_olinuxino/Kconfig
+@@ -0,0 +1,10 @@
++if TARGET_A13_OLINUXINO
++config SYS_BOARD
++	default "a13_olinuxino"
++
++config SYS_VENDOR
++	default "olimex"
++
++config SYS_CONFIG_NAME
++	default "a13_olinuxino"
++endif
+diff --git a/board/olimex/a13_olinuxino/MAINTAINERS b/board/olimex/a13_olinuxino/MAINTAINERS
+new file mode 100644
+index 0000000000..84d1c28a85
+--- /dev/null
++++ b/board/olimex/a13_olinuxino/MAINTAINERS
+@@ -0,0 +1,5 @@
++M:      Dimitar Gamishev <hehopmajieh@debian.bg>
++S:      Maintained
++F:      board/olimex/a13-olinuxino
++F:	include/configs/a13_olinuxino.h
++F:      configs/A13-OLinuXino_defconfig
+diff --git a/board/olimex/a13_olinuxino/Makefile b/board/olimex/a13_olinuxino/Makefile
+new file mode 100644
+index 0000000000..ed928e9c44
+--- /dev/null
++++ b/board/olimex/a13_olinuxino/Makefile
+@@ -0,0 +1,18 @@
++# SPDX-License-Identifier: GPL-2.0+
++#
++# Makefile
++#
++# Copyright (C) 2019 Olimex Ltd.
++#   Author: Dimitar Gamishev <hehopmajieh@debian.bg>
++
++obj-y	+= board.o
++obj-y	+= ../common/sunxi/board.o
++obj-y   += ../common/sys_eeprom.o
++obj-y	+= ../../sunxi/dram_sun5i_auto.o
++
++ifndef CONFIG_SPL_BUILD
++obj-y				+= ../common/boards.o
++obj-y				+= ../common/cmd.o
++obj-$(CONFIG_OF_BOARD_FIXUP)	+= fdt.o
++obj-$(CONFIG_VIDEO_LCD_OLINUXINO) += ../common/lcd_olinuxino.o
++endif
+diff --git a/board/olimex/a13_olinuxino/board.c b/board/olimex/a13_olinuxino/board.c
+new file mode 100644
+index 0000000000..5a70c9aaf9
+--- /dev/null
++++ b/board/olimex/a13_olinuxino/board.c
+@@ -0,0 +1,187 @@
++/*
++ * Copyright (C) 2020 Olimex Ltd.
++ *   Author:  Dimitar Gamishev <hehopmajieh@debian.bg>
++ *   Stefan Mavrodiev <stefan@olimex.com>
++ * SPDX-License-Identifier: (GPL-2.0+ OR MIT)
++ */
++
++#include <common.h>
++#include <env_internal.h>
++#include <mmc.h>
++#include <spl.h>
++#include <asm/arch/gpio.h>
++#include <asm/arch/mmc.h>
++#include <asm/arch/spl.h>
++#include <asm/gpio.h>
++#include <axp_pmic.h>
++
++#include <olimex/boards.h>
++#include <olimex/sys_eeprom.h>
++
++DECLARE_GLOBAL_DATA_PTR;
++
++#ifdef CONFIG_SPL_BUILD
++void spl_board_init(void)
++{
++	int axp_power=0;
++	printf("A13 Board no eeprom found!\n ");
++	phys_size_t l = 512 * 1024 * 1024;	
++	
++	axp_power |= axp_init();
++	if (!axp_power) {
++		printf("PMIC found board is A13-OLinuXino/ A13-OLinuXino WIFI !\n");			
++		eeprom->header = OLINUXINO_EEPROM_MAGIC;
++		eeprom->id = 4432;
++		eeprom->revision.major = 'A';
++		eeprom->revision.minor = 0;
++	} else {
++		if (gd->ram_size == l) {
++			printf("PMIC not found board is A13-SOM-512 \n");
++	        	eeprom->header = OLINUXINO_EEPROM_MAGIC;
++	                eeprom->id = 4788;
++                	eeprom->revision.major = 'A';
++                	eeprom->revision.minor = 0;			
++		} else {
++			printf("PMIC not found board is A13-SOM-256/A13-Micro\n");
++			eeprom->header = OLINUXINO_EEPROM_MAGIC;
++                	eeprom->id = 4787;
++                	eeprom->revision.major = 'A';
++                	eeprom->revision.minor = 0;
++		}
++
++	}
++}
++#endif /* CONFIG_SPL_BUILD */
++
++#ifdef CONFIG_DISPLAY_BOARDINFO
++int show_board_info(void)
++{
++	char  rev[3];
++	const char *name;
++
++	name = olinuxino_get_board_name();
++
++	olinuxino_get_board_revision(rev);
++	printf("%-7s%s Rev.%s", "ID:", name, rev);
++
++	return 0;
++}
++#endif
++
++#ifdef CONFIG_BOARD_LATE_INIT
++int board_late_init(void)
++{
++	/*No need to late init*/
++
++	return 0;
++}
++#endif /* CONFIG_BOARD_LATE_INIT */
++
++#ifdef CONFIG_MULTI_DTB_FIT
++int board_fit_config_name_match(const char *name)
++{
++	const char *dtb = olinuxino_get_board_fdt();
++
++	return (!strncmp(name, dtb, strlen(dtb))) ? 0 : -1;
++}
++#endif /* CONFIG_MULTI_DTB_FIT */
++
++#ifdef CONFIG_ENV_IS_IN_EXT4
++const char *env_ext4_get_dev_part(void)
++{
++	switch (sunxi_get_boot_device()) {
++	case BOOT_DEVICE_BOARD:
++		if (eeprom->config.storage == 'e')
++			return "1:auto";
++		else
++			return "0:auto";
++	case BOOT_DEVICE_MMC1:
++		return "0:auto";
++	case BOOT_DEVICE_MMC2:
++		return "1:auto";
++	default:
++		return CONFIG_ENV_EXT4_DEVICE_AND_PART;
++	}
++}
++#endif /* CONFIG_ENV_IS_IN_EXT4 */
++
++#ifdef CONFIG_ENV_IS_IN_FAT
++const char *env_fat_get_dev_part(void)
++{
++	switch (sunxi_get_boot_device()) {
++	case BOOT_DEVICE_BOARD:
++		if (eeprom->config.storage == 'e')
++			return "1:auto";
++		else
++			return "0:auto";
++	case BOOT_DEVICE_MMC1:
++		return "0:auto";
++	case BOOT_DEVICE_MMC2:
++		return "1:auto";
++	default:
++		return CONFIG_ENV_FAT_DEVICE_AND_PART;
++	}
++}
++#endif /* CONFIG_ENV_IS_IN_FAT */
++
++#if CONFIG_ENV_IS_IN_SPI_FLASH
++static enum env_location env_get_location_spi(int prio)
++{
++	switch (prio) {
++	case 0:
++		return ENVL_SPI_FLASH;
++	case 1:
++		return ENVL_EXT4;
++	case 2:
++		return ENVL_FAT;
++	default:
++		break;
++	}
++
++	return ENVL_UNKNOWN;
++}
++#endif
++
++static enum env_location env_get_location_default(int prio)
++{
++	switch (prio) {
++	case 0:
++		return ENVL_EXT4;
++	case 1:
++		return ENVL_FAT;
++	default:
++		break;
++	}
++
++	return ENVL_UNKNOWN;
++}
++
++enum env_location env_get_location(enum env_operation op, int prio)
++{
++	uint32_t boot = sunxi_get_boot_device();
++
++	switch (boot) {
++	case BOOT_DEVICE_BOARD:
++#ifdef CONFIG_ENV_IS_IN_SPI_FLASH
++		if (olinuxino_board_has_spi())
++			return env_get_location_spi(prio);
++		else
++#endif
++			return env_get_location_default(prio);
++
++#ifdef CONFIG_ENV_IS_IN_SPI_FLASH
++	case BOOT_DEVICE_SPI:
++		return env_get_location_spi(prio);
++#endif
++
++	case BOOT_DEVICE_MMC1:
++	case BOOT_DEVICE_MMC2:
++		break;
++
++	default:
++		break;
++
++	}
++
++	return env_get_location_default(prio);
++}
+diff --git a/board/olimex/a13_olinuxino/fdt.c b/board/olimex/a13_olinuxino/fdt.c
+new file mode 100644
+index 0000000000..6f9080e2af
+--- /dev/null
++++ b/board/olimex/a13_olinuxino/fdt.c
+@@ -0,0 +1,144 @@
++/*
++ * Copyright (C) 2019 Olimex Ltd.
++ *   Author: Stefan Mavrodiev <stefan@olimex.com>
++ *
++ * SPDX-License-Identifier: (GPL-2.0+ OR MIT)
++ */
++#include <common.h>
++#include <linux/ctype.h>
++
++#include <olimex/boards.h>
++
++static int _fdt_path_offset(void *fdt, const char *path)
++{
++	int offset;
++
++	offset = fdt_path_offset(fdt, path);
++	if (offset < 0)
++		debug("%s: not found: %s (%d)\n",
++		      path, fdt_strerror(offset), offset);
++
++	return offset;
++}
++
++static int board_set_compatible(void *fdt)
++{
++	char name[64], *p;
++	int offset;
++	int ret;
++
++	/* Set compatible string */
++	snprintf(name, 64, "olimex,%s", olinuxino_get_board_name());
++	p = name;
++	for (; *p; p++)
++		*p = tolower(*p);
++
++	offset = _fdt_path_offset(fdt, "/");
++	ret = fdt_setprop_string(fdt, offset, "compatible", name);
++	if (ret) {
++		printf("%s@%d\n", __func__, __LINE__);
++		return ret;
++	}
++
++	return 0;
++}
++
++static int board_enable_spi_flash(void *fdt)
++{
++	uint32_t phandle;
++	int offset, ret = 0;
++
++	offset = _fdt_path_offset(fdt, "/soc/pinctrl@1c20800");
++	if (offset < 0)
++		return offset;
++
++	offset = fdt_add_subnode(fdt, offset, "spi0-pc-pins");
++	if (offset < 0) {
++		printf("%s@%d\n", __func__, __LINE__);
++		return offset;
++	}
++
++	/* Generate phandle */
++	phandle = fdt_create_phandle(fdt, offset);
++	if (!phandle) {
++		printf("%s@%d\n", __func__, __LINE__);
++		return -1;
++	}
++
++	ret |= fdt_setprop_string(fdt, offset, "function" , "spi0");
++	ret |= fdt_setprop_string(fdt, offset, "pins" , "PC0");
++	ret |= fdt_appendprop_string(fdt, offset, "pins", "PC1");
++	ret |= fdt_appendprop_string(fdt, offset, "pins", "PC2");
++	ret |= fdt_appendprop_string(fdt, offset, "pins", "PC23");
++	if (ret < 0) {
++		printf("%s@%d\n", __func__, __LINE__);
++		return ret;
++	}
++
++	offset = _fdt_path_offset(fdt, "/soc/spi@1c05000");
++	if (offset < 0)
++		return offset;
++
++	/* Change status to okay */
++	ret |= fdt_status_okay(fdt, offset);
++	ret |= fdt_setprop_u32(fdt, offset, "spi-max-frequency", 20000000);
++	ret |= fdt_setprop_u32(fdt, offset, "pinctrl-0", phandle);
++	ret |= fdt_setprop_string(fdt, offset, "pinctrl-names", "default");
++	if (ret < 0) {
++		printf("%s@%d\n", __func__, __LINE__);
++		return ret;
++	}
++
++	offset = fdt_add_subnode(fdt, offset, "spi-nor@0");
++	if (offset < 0) {
++		printf("%s@%d\n", __func__, __LINE__);
++		return offset;
++	}
++
++	ret |= fdt_status_okay(fdt, offset);
++	ret |= fdt_setprop_u32(fdt, offset, "spi-max-frequency", 20000000);
++	ret |= fdt_setprop_u32(fdt, offset, "reg", 0);
++	ret |= fdt_setprop_u32(fdt, offset, "#size-cells", 1);
++	ret |= fdt_setprop_u32(fdt, offset, "#address-cells", 1);
++	ret |= fdt_setprop_string(fdt, offset, "compatible", "winbond,w25q128");
++	ret |= fdt_appendprop_string(fdt, offset, "compatible", "jedec,spi-nor");
++	ret |= fdt_appendprop_string(fdt, offset, "compatible", "spi-flash");
++	if (ret < 0) {
++		printf("%s@%d\n", __func__, __LINE__);
++		return ret;
++	}
++
++	offset = _fdt_path_offset(fdt, "/aliases");
++	if (offset < 0)
++		return offset;
++
++	ret = fdt_setprop_string(fdt, offset, "spi0", "/soc/spi@1c05000");
++	if (ret < 0)
++		printf("%s@%d\n", __func__, __LINE__);
++
++	return ret;
++}
++
++static int board_disable_gmac(void *fdt)
++{
++
++	return 0;
++}
++
++static int board_enable_emac(void *fdt)
++{
++	return 0;
++}
++
++static int board_disable_sdio(void *fdt)
++{
++
++	return 0;
++
++}
++
++int board_fix_fdt(void *fdt)
++{
++
++	return 0;
++}
+diff --git a/board/olimex/a13_olinuxino/gmac.c b/board/olimex/a13_olinuxino/gmac.c
+new file mode 100644
+index 0000000000..a2af9f4a6e
+--- /dev/null
++++ b/board/olimex/a13_olinuxino/gmac.c
+@@ -0,0 +1,69 @@
++/*
++ * Copyright (C) 2019 Olimex Ltd.
++ *   Author: Stefan Mavrodiev <stefan@olimex.com>
++ *
++ * SPDX-License-Identifier: (GPL-2.0+ OR MIT)
++ */
++#include <common.h>
++#include <netdev.h>
++#include <miiphy.h>
++#include <asm/gpio.h>
++#include <asm/io.h>
++#include <asm/arch/clock.h>
++#include <asm/arch/gpio.h>
++
++#include <olimex/boards.h>
++
++void eth_init_board(void)
++{
++	static struct sunxi_ccm_reg *const ccm =
++		(struct sunxi_ccm_reg *)SUNXI_CCM_BASE;
++	enum olinuxino_phy_mode mode;
++	uint8_t tx_delay = 0;
++	int pin;
++
++	/**
++	 * A20-SOM204-1G-M (10257) has only megabit interface
++	 */
++	if (olinuxino_get_board_id() == 10257)
++		return;
++
++	mode = olinuxino_get_phy_mode();
++	if (mode == OLINUXINO_PHY_MODE_UNKNOWN)
++		return;
++
++	tx_delay = olinuxino_phy_txdelay();
++
++	/* Set up clock gating */
++	setbits_le32(&ccm->ahb_gate1, 0x1 << AHB_GATE_OFFSET_GMAC);
++
++	if (mode == OLINUXINO_PHY_MODE_RGMII) {
++		setbits_le32(&ccm->gmac_clk_cfg,
++			     CCM_GMAC_CTRL_TX_CLK_DELAY(tx_delay));
++		setbits_le32(&ccm->gmac_clk_cfg,
++			     CCM_GMAC_CTRL_TX_CLK_SRC_INT_RGMII |
++			     CCM_GMAC_CTRL_GPIT_RGMII);
++	} else {
++		setbits_le32(&ccm->gmac_clk_cfg,
++			     CCM_GMAC_CTRL_TX_CLK_SRC_MII |
++			     CCM_GMAC_CTRL_GPIT_MII);
++	}
++
++	/* Configure pins for GMAC */
++	for (pin = SUNXI_GPA(0); pin <= SUNXI_GPA(16); pin++) {
++
++		/* skip unused pins in RGMII mode */
++		if (mode == OLINUXINO_PHY_MODE_RGMII ) {
++			if (pin == SUNXI_GPA(9) || pin == SUNXI_GPA(14))
++				continue;
++		}
++
++		sunxi_gpio_set_cfgpin(pin, SUN7I_GPA_GMAC);
++		sunxi_gpio_set_drv(pin, 3);
++	}
++
++	/* A20-OLinuXino-MICRO needs additional signal for TXERR */
++	if (olinuxino_get_board_family() == OLINUXINO_MICRO) {
++		sunxi_gpio_set_cfgpin(SUNXI_GPA(17),  SUN7I_GPA_GMAC);
++	}
++}
+diff --git a/board/olimex/common/boards.c b/board/olimex/common/boards.c
+index 2b0fcbab41..e6e1c5e3fe 100644
+--- a/board/olimex/common/boards.c
++++ b/board/olimex/common/boards.c
+@@ -267,6 +267,21 @@ struct olinuxino_boards olinuxino_boards[] = {
+ 		OLINUXINO_CONFIG(EMMC, GBYTES(16), GBYTES(2), COM)
+ 	},
+ #endif
++#if defined(CONFIG_TARGET_A13_OLINUXINO)
++        {
++                OLINUXINO_BOARD(4432, "A13-OLinuXino", "sun5i-a13-olinuxino")
++                OLINUXINO_CONFIG(NAND, GBYTES(4), MBYTES(512), COM)
++        },
++        {
++                OLINUXINO_BOARD(4787, "A13-SOM-256", "sun5i-a13-som-256")
++                OLINUXINO_CONFIG(NONE, -1, MBYTES(256), COM)
++        },
++        {
++                OLINUXINO_BOARD(4788, "A13-SOM-512", "sun5i-a13-som512")
++                OLINUXINO_CONFIG(NONE, -1, MBYTES(512), COM)
++        },
++#endif
++
+ 	{
+ 		.id = 0,
+ 	}
+diff --git a/board/olimex/common/sunxi/board.c b/board/olimex/common/sunxi/board.c
+index c84b84d310..bf3cf42102 100644
+--- a/board/olimex/common/sunxi/board.c
++++ b/board/olimex/common/sunxi/board.c
+@@ -933,6 +933,8 @@ err:
+ 	 * If LCD-OLinuXino is detected, check if there are any overlays
+ 	 * set in the environmet. If so, try to load them
+ 	 */
++#ifndef CONFIG_TARGET_A13_OLINUXINO
++
+ 	if (!lcd_olinuxino_is_present())
+ 		return;
+ 
+@@ -953,6 +955,7 @@ err:
+ 			fdt_set_totalsize(blob, fdt_totalsize(backup));
+ 		}
+ 	}
++#endif
+ }
+ #else
+ static void olinuxino_load_overlays(void *blob) {}
+diff --git a/configs/A13-OLinuXino_defconfig b/configs/A13-OLinuXino_defconfig
+index 5163b331f8..de08c3ea70 100644
+--- a/configs/A13-OLinuXino_defconfig
++++ b/configs/A13-OLinuXino_defconfig
+@@ -3,7 +3,7 @@ CONFIG_ARCH_SUNXI=y
+ CONFIG_NR_DRAM_BANKS=1
+ CONFIG_SPL=y
+ CONFIG_MACH_SUN5I=y
+-CONFIG_DRAM_CLK=408
++CONFIG_DRAM_CLK=360
+ CONFIG_DRAM_EMR1=0
+ CONFIG_MMC0_CD_PIN="PG0"
+ CONFIG_USB0_VBUS_DET="PG1"
+@@ -27,7 +27,21 @@ CONFIG_DFU_RAM=y
+ CONFIG_FASTBOOT_CMD_OEM_FORMAT=y
+ CONFIG_AXP_ALDO3_VOLT=3300
+ CONFIG_CONS_INDEX=2
++CONFIG_TARGET_A13_OLINUXINO=y
++CONFIG_SPL_BOARD_INIT=y
++CONFIG_BOARD_LATE_INIT=y
++CONFIG_OF_BOARD_FIXUP=y
++CONFIG_MMC_BROKEN_CD=y
++CONFIG_MULTI_DTB_FIT=y
++CONFIG_OF_LIST="sun5i-a13-olinuxino sun5i-a13-som-256 sun5i-a13-som-512"
+ CONFIG_USB_EHCI_HCD=y
+ CONFIG_USB_OHCI_HCD=y
+ CONFIG_USB_MUSB_GADGET=y
+ CONFIG_SYS_USB_EVENT_POLL_VIA_INT_QUEUE=y
++CONFIG_ENV_FAT_DEVICE_AND_PART=""
++
++CONFIG_ENV_IS_IN_EXT4=y
++CONFIG_ENV_EXT4_INTERFACE="mmc"
++CONFIG_ENV_EXT4_DEVICE_AND_PART=""
++CONFIG_ENV_EXT4_FILE="/uboot.env"
++CONFIG_FIT_BEST_MATCH=y
+diff --git a/include/configs/a13_olinuxino.h b/include/configs/a13_olinuxino.h
+new file mode 100644
+index 0000000000..a4a9fec9c7
+--- /dev/null
++++ b/include/configs/a13_olinuxino.h
+@@ -0,0 +1,12 @@
++/*
++ * Copyright (C) 2020 Olimex Ltd.
++ *   Author: Dimitar Gamishev <hehopmajieh@debian.bg>
++ *
++ * SPDX-License-Identifier: (GPL-2.0+ OR MIT)
++ */
++#ifndef __A13_OLINUXINO_H
++#include <configs/sun5i.h>
++
++#define OLINUXINO_MMC_SECTOR		15
++
++#endif /* __A13_OLINUXINO_H */
+-- 
+2.17.1
+
