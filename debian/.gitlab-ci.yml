@@ -126,7 +126,7 @@ deploy:repository:
     - gpg --no-tty --batch --yes --import $SIGN_KEY
     - echo "" | gpg2 --pinentry-mode loopback --passphrase $GPG_PASS --sign -u $GPG_USER > /dev/null
   rules:
-    - if: '$CI_COMMIT_REF_PROTECTED == "true" && $CI_COMMIT_REF_NAME =~ "/^debian.*"'
+    - if: '$CI_COMMIT_REF_PROTECTED == "true" && $CI_COMMIT_TAG =~ /^debian.*/'
       when: manual
   script:
     - debsign $CI_PROJECT_NAME-$CI_COMMIT_SHORT_SHA/*_multi.changes
