@@ -69,6 +69,7 @@ package:armhf:
   needs:
     - "package:source"
   script:
+    - touch .scmversion
     - DEB_BUILD_OPTIONS=parallel=$(nproc) dpkg-buildpackage --post-clean --no-sign -a$ARCH -i -I -b
     - mkdir $CI_PROJECT_NAME-armhf.$CI_COMMIT_SHORT_SHA
     - rm -vf ../u-boot-*olinuxino_*.orig.tar.gz
@@ -92,6 +93,7 @@ package:arm64:
   needs:
     - "package:source"
   script:
+    - touch .scmversion
     - DEB_BUILD_OPTIONS=parallel=$(nproc) dpkg-buildpackage --post-clean --no-sign -a$ARCH -i -I -b
     - mkdir $CI_PROJECT_NAME-arm64.$CI_COMMIT_SHORT_SHA
     - rm -vf ../u-boot-*olinuxino_*.orig.tar.gz
