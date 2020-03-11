@@ -125,12 +125,11 @@ deploy:repository:
   before_script:
     - gpg --no-tty --batch --yes --import $SIGN_KEY
     - echo "" | gpg2 --pinentry-mode loopback --passphrase $GPG_PASS --sign -u $GPG_USER > /dev/null
-  rules:
-    - if: '$CI_COMMIT_REF_PROTECTED == "true"'
-      when: manual
+  only:
+    - tags
   script:
     - debsign $CI_PROJECT_NAME-$CI_COMMIT_SHORT_SHA/*_multi.changes
-    - reprepro -b /var/www/html/staging include unstable $CI_PROJECT_NAME-$CI_COMMIT_SHORT_SHA/*_multi.changes
+    - reprepro -b /var/www/html/repository include unstable $CI_PROJECT_NAME-$CI_COMMIT_SHORT_SHA/*_multi.changes
   stage: deploy
   tags:
     - deploy
