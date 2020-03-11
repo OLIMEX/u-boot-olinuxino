@@ -232,10 +232,10 @@ index 0000000000..afb2d08a6d
 +endif
 diff --git a/board/olimex/a20_olinuxino/board.c b/board/olimex/a20_olinuxino/board.c
 new file mode 100644
-index 0000000000..02851d9b4e
+index 0000000000..3d70eb0ee0
 --- /dev/null
 +++ b/board/olimex/a20_olinuxino/board.c
-@@ -0,0 +1,208 @@
+@@ -0,0 +1,216 @@
 +/*
 + * Copyright (C) 2020 Olimex Ltd.
 + *   Author: Stefan Mavrodiev <stefan@olimex.com>
@@ -365,6 +365,14 @@ index 0000000000..02851d9b4e
 +		mdelay(100);
 +		gpio_direction_output(pin, 1);
 +
++		/* Reset KSZ9031 PHY */
++		pin = sunxi_name_to_gpio("PA17");
++
++		gpio_request(pin, "gmac_rst");
++		gpio_direction_output(pin, 0);
++		mdelay(100);
++		gpio_direction_output(pin, 1);
++
 +		/**
 +		 * If the board has additional MII phy, toggle reset
 +		 */
@@ -446,10 +454,10 @@ index 0000000000..02851d9b4e
 +}
 diff --git a/board/olimex/a20_olinuxino/fdt.c b/board/olimex/a20_olinuxino/fdt.c
 new file mode 100644
-index 0000000000..2ab1646724
+index 0000000000..a977861313
 --- /dev/null
 +++ b/board/olimex/a20_olinuxino/fdt.c
-@@ -0,0 +1,257 @@
+@@ -0,0 +1,246 @@
 +/*
 + * Copyright (C) 2019 Olimex Ltd.
 + *   Author: Stefan Mavrodiev <stefan@olimex.com>
@@ -645,18 +653,7 @@ index 0000000000..2ab1646724
 +		return ret;
 +	}
 +
-+	offset = _fdt_path_offset(fdt, "/aliases");
-+	if (offset < 0)
-+		return offset;
-+
-+	ret = fdt_delprop(fdt, offset, "ethernet1");
-+	if (ret < 0) {
-+		printf("%s@%d\n", __func__, __LINE__);
-+		return ret;
-+	}
-+
 +	return 0;
-+
 +}
 +
 +int board_fix_fdt(void *fdt)
@@ -3664,10 +3661,10 @@ index 0000000000..b0b92f988d
 +}
 diff --git a/configs/A20-OLinuXino_defconfig b/configs/A20-OLinuXino_defconfig
 new file mode 100644
-index 0000000000..0f6dedb63f
+index 0000000000..aa21417e14
 --- /dev/null
 +++ b/configs/A20-OLinuXino_defconfig
-@@ -0,0 +1,70 @@
+@@ -0,0 +1,71 @@
 +CONFIG_ARM=y
 +CONFIG_ARCH_SUNXI=y
 +CONFIG_NR_DRAM_BANKS=1
@@ -3701,6 +3698,7 @@ index 0000000000..0f6dedb63f
 +CONFIG_USB_OHCI_HCD=y
 +CONFIG_USB_MUSB_GADGET=y
 +CONFIG_SYS_USB_EVENT_POLL_VIA_INT_QUEUE=y
++# CONFIG_PHY_ADDR_ENABLE is not set
 +
 +CONFIG_TARGET_A20_OLINUXINO=y
 +CONFIG_SPL_BOARD_INIT=y
