@@ -232,10 +232,10 @@ index 0000000000..afb2d08a6d
 +endif
 diff --git a/board/olimex/a20_olinuxino/board.c b/board/olimex/a20_olinuxino/board.c
 new file mode 100644
-index 0000000000..3d70eb0ee0
+index 0000000000..e7b796d867
 --- /dev/null
 +++ b/board/olimex/a20_olinuxino/board.c
-@@ -0,0 +1,216 @@
+@@ -0,0 +1,220 @@
 +/*
 + * Copyright (C) 2020 Olimex Ltd.
 + *   Author: Stefan Mavrodiev <stefan@olimex.com>
@@ -365,24 +365,28 @@ index 0000000000..3d70eb0ee0
 +		mdelay(100);
 +		gpio_direction_output(pin, 1);
 +
-+		/* Reset KSZ9031 PHY */
-+		pin = sunxi_name_to_gpio("PA17");
-+
-+		gpio_request(pin, "gmac_rst");
-+		gpio_direction_output(pin, 0);
-+		mdelay(100);
-+		gpio_direction_output(pin, 1);
-+
-+		/**
-+		 * If the board has additional MII phy, toggle reset
-+		 */
-+		if (olinuxino_board_has_emac()) {
++		if (olinuxino_get_board_id() == 10257) {
++			/* Reset LAN8710 */
 +			pin = sunxi_name_to_gpio("PC18");
 +
 +			gpio_request(pin, "emac_rst");
 +			gpio_direction_output(pin, 0);
 +			mdelay(100);
 +			gpio_direction_output(pin, 1);
++		} else {
++			/* Reset KSZ9031 PHY */
++			pin = sunxi_name_to_gpio("PA17");
++
++			gpio_request(pin, "gmac_rst");
++			gpio_direction_output(pin, 0);
++			mdelay(100);
++			gpio_direction_output(pin, 1);
++
++			/* Disable LAN8710 */
++			pin = sunxi_name_to_gpio("PC18");
++
++			gpio_request(pin, "emac_rst");
++			gpio_direction_output(pin, 0);
 +		}
 +	}
 +
@@ -454,10 +458,10 @@ index 0000000000..3d70eb0ee0
 +}
 diff --git a/board/olimex/a20_olinuxino/fdt.c b/board/olimex/a20_olinuxino/fdt.c
 new file mode 100644
-index 0000000000..a977861313
+index 0000000000..064361d236
 --- /dev/null
 +++ b/board/olimex/a20_olinuxino/fdt.c
-@@ -0,0 +1,246 @@
+@@ -0,0 +1,244 @@
 +/*
 + * Copyright (C) 2019 Olimex Ltd.
 + *   Author: Stefan Mavrodiev <stefan@olimex.com>
@@ -694,9 +698,7 @@ index 0000000000..a977861313
 +		ret = board_disable_gmac(fdt);
 +		if (ret < 0)
 +			return ret;
-+	}
 +
-+	if (olinuxino_board_has_emac()) {
 +		ret = board_enable_emac(fdt);
 +		if (ret < 0)
 +			return ret;
