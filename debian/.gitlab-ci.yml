@@ -125,8 +125,9 @@ deploy:repository:
   before_script:
     - gpg --no-tty --batch --yes --import $SIGN_KEY
     - echo "" | gpg2 --pinentry-mode loopback --passphrase $GPG_PASS --sign -u $GPG_USER > /dev/null
-  only:
-    - tags
+  rules:
+    - if: '$CI_COMMIT_REF_PROTECTED == "true" && $CI_COMMIT_REF_NAME =~ "/^debian.*"'
+      when: manual
   script:
     - debsign $CI_PROJECT_NAME-$CI_COMMIT_SHORT_SHA/*_multi.changes
     - reprepro -b /var/www/html/repository include unstable $CI_PROJECT_NAME-$CI_COMMIT_SHORT_SHA/*_multi.changes
