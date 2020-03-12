@@ -232,10 +232,10 @@ index 0000000000..afb2d08a6d
 +endif
 diff --git a/board/olimex/a20_olinuxino/board.c b/board/olimex/a20_olinuxino/board.c
 new file mode 100644
-index 0000000000..e7b796d867
+index 0000000000..0130f4e248
 --- /dev/null
 +++ b/board/olimex/a20_olinuxino/board.c
-@@ -0,0 +1,220 @@
+@@ -0,0 +1,205 @@
 +/*
 + * Copyright (C) 2020 Olimex Ltd.
 + *   Author: Stefan Mavrodiev <stefan@olimex.com>
@@ -359,34 +359,19 @@ index 0000000000..e7b796d867
 +	 */
 +	if (family == OLINUXINO_SOM204) {
 +		pin = sunxi_name_to_gpio("PB11");
-+
 +		gpio_request(pin, "btpwr");
 +		gpio_direction_output(pin, 0);
 +		mdelay(100);
 +		gpio_direction_output(pin, 1);
 +
++		/* Reset LAN8710 */
++		pin = sunxi_name_to_gpio("PC18");
++		gpio_request(pin, "emac_rst");
++		gpio_direction_output(pin, 0);
++
 +		if (olinuxino_get_board_id() == 10257) {
-+			/* Reset LAN8710 */
-+			pin = sunxi_name_to_gpio("PC18");
-+
-+			gpio_request(pin, "emac_rst");
-+			gpio_direction_output(pin, 0);
 +			mdelay(100);
 +			gpio_direction_output(pin, 1);
-+		} else {
-+			/* Reset KSZ9031 PHY */
-+			pin = sunxi_name_to_gpio("PA17");
-+
-+			gpio_request(pin, "gmac_rst");
-+			gpio_direction_output(pin, 0);
-+			mdelay(100);
-+			gpio_direction_output(pin, 1);
-+
-+			/* Disable LAN8710 */
-+			pin = sunxi_name_to_gpio("PC18");
-+
-+			gpio_request(pin, "emac_rst");
-+			gpio_direction_output(pin, 0);
 +		}
 +	}
 +
@@ -458,10 +443,10 @@ index 0000000000..e7b796d867
 +}
 diff --git a/board/olimex/a20_olinuxino/fdt.c b/board/olimex/a20_olinuxino/fdt.c
 new file mode 100644
-index 0000000000..064361d236
+index 0000000000..39d8948295
 --- /dev/null
 +++ b/board/olimex/a20_olinuxino/fdt.c
-@@ -0,0 +1,244 @@
+@@ -0,0 +1,254 @@
 +/*
 + * Copyright (C) 2019 Olimex Ltd.
 + *   Author: Stefan Mavrodiev <stefan@olimex.com>
@@ -652,6 +637,16 @@ index 0000000000..064361d236
 +		return offset;
 +
 +	ret = fdt_status_disabled(fdt, offset);
++	if (ret < 0) {
++		printf("%s@%d\n", __func__, __LINE__);
++		return ret;
++	}
++
++	offset = _fdt_path_offset(fdt, "/aliases");
++	if (offset < 0)
++		return offset;
++
++	ret = fdt_delprop(fdt, offset, "ethernet1");
 +	if (ret < 0) {
 +		printf("%s@%d\n", __func__, __LINE__);
 +		return ret;
@@ -4281,7 +4276,7 @@ index 0000000000..5718643f61
 +#endif /* __A64_OLINUXINO_H */
 diff --git a/include/olimex/boards.h b/include/olimex/boards.h
 new file mode 100644
-index 0000000000..3ec0770dfe
+index 0000000000..df9d6a25e0
 --- /dev/null
 +++ b/include/olimex/boards.h
 @@ -0,0 +1,117 @@
@@ -4366,8 +4361,8 @@ index 0000000000..3ec0770dfe
 +
 +struct olinuxino_boards {
 +	uint32_t id;
-+	const char name[32];
-+	const char fdt[32];
++	const char name[64];
++	const char fdt[64];
 +#if defined(CONFIG_TARGET_A20_OLINUXINO)
 +	enum olinuxino_family family;
 +#endif
