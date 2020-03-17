@@ -1,24 +1,23 @@
-From bbeaefeaaa41f52630e46e051f9ad914e05c7056 Mon Sep 17 00:00:00 2001
-From: hehopmajieh <hehopmajieh@debian.bg>
-Date: Tue, 10 Mar 2020 15:16:46 +0200
-Subject: [PATCH] a13 boards auto detect
+From ec2840a37c271c8f94070588610b7c16cf7e7c27 Mon Sep 17 00:00:00 2001
+From: hehopmajieh <gamishev@gmail.com>
+Date: Tue, 17 Mar 2020 13:18:26 +0200
+Subject: [PATCH] sun5i_support
 
 ---
  arch/arm/dts/Makefile                  |   2 +
- arch/arm/dts/sun5i-a13-som-256.dts     | 181 ++++++++++++++++++++++++
- arch/arm/dts/sun5i-a13-som-512.dts     | 181 ++++++++++++++++++++++++
+ arch/arm/dts/sun5i-a13-som-256.dts     | 181 +++++++++++++++++++++++++
+ arch/arm/dts/sun5i-a13-som-512.dts     | 181 +++++++++++++++++++++++++
  arch/arm/mach-sunxi/Kconfig            |  24 +++-
  board/olimex/a13_olinuxino/Kconfig     |  10 ++
  board/olimex/a13_olinuxino/MAINTAINERS |   5 +
  board/olimex/a13_olinuxino/Makefile    |  18 +++
- board/olimex/a13_olinuxino/board.c     | 187 +++++++++++++++++++++++++
- board/olimex/a13_olinuxino/fdt.c       | 144 +++++++++++++++++++
- board/olimex/a13_olinuxino/gmac.c      |  69 +++++++++
+ board/olimex/a13_olinuxino/board.c     | 164 ++++++++++++++++++++++
+ board/olimex/a13_olinuxino/fdt.c       | 144 ++++++++++++++++++++
  board/olimex/common/boards.c           |  15 ++
- board/olimex/common/sunxi/board.c      |   3 +
+ board/olimex/common/sunxi/board.c      |   8 ++
  configs/A13-OLinuXino_defconfig        |  16 ++-
  include/configs/a13_olinuxino.h        |  12 ++
- 14 files changed, 865 insertions(+), 2 deletions(-)
+ 13 files changed, 778 insertions(+), 2 deletions(-)
  create mode 100644 arch/arm/dts/sun5i-a13-som-256.dts
  create mode 100644 arch/arm/dts/sun5i-a13-som-512.dts
  create mode 100644 board/olimex/a13_olinuxino/Kconfig
@@ -26,11 +25,10 @@ Subject: [PATCH] a13 boards auto detect
  create mode 100644 board/olimex/a13_olinuxino/Makefile
  create mode 100644 board/olimex/a13_olinuxino/board.c
  create mode 100644 board/olimex/a13_olinuxino/fdt.c
- create mode 100644 board/olimex/a13_olinuxino/gmac.c
  create mode 100644 include/configs/a13_olinuxino.h
 
 diff --git a/arch/arm/dts/Makefile b/arch/arm/dts/Makefile
-index 6f83598011..b0255014c5 100644
+index 0127a91a82..63fed0dc5c 100644
 --- a/arch/arm/dts/Makefile
 +++ b/arch/arm/dts/Makefile
 @@ -434,6 +434,8 @@ dtb-$(CONFIG_MACH_SUN5I) += \
@@ -518,10 +516,10 @@ index 0000000000..ed928e9c44
 +endif
 diff --git a/board/olimex/a13_olinuxino/board.c b/board/olimex/a13_olinuxino/board.c
 new file mode 100644
-index 0000000000..5a70c9aaf9
+index 0000000000..f693df09a6
 --- /dev/null
 +++ b/board/olimex/a13_olinuxino/board.c
-@@ -0,0 +1,187 @@
+@@ -0,0 +1,164 @@
 +/*
 + * Copyright (C) 2020 Olimex Ltd.
 + *   Author:  Dimitar Gamishev <hehopmajieh@debian.bg>
@@ -613,37 +611,14 @@ index 0000000000..5a70c9aaf9
 +#ifdef CONFIG_ENV_IS_IN_EXT4
 +const char *env_ext4_get_dev_part(void)
 +{
-+	switch (sunxi_get_boot_device()) {
-+	case BOOT_DEVICE_BOARD:
-+		if (eeprom->config.storage == 'e')
-+			return "1:auto";
-+		else
-+			return "0:auto";
-+	case BOOT_DEVICE_MMC1:
 +		return "0:auto";
-+	case BOOT_DEVICE_MMC2:
-+		return "1:auto";
-+	default:
-+		return CONFIG_ENV_EXT4_DEVICE_AND_PART;
-+	}
 +}
 +#endif /* CONFIG_ENV_IS_IN_EXT4 */
 +
 +#ifdef CONFIG_ENV_IS_IN_FAT
 +const char *env_fat_get_dev_part(void)
 +{
-+	switch (sunxi_get_boot_device()) {
-+	case BOOT_DEVICE_BOARD:
-+		if (eeprom->config.storage == 'e')
-+			return "1:auto";
-+		else
 +			return "0:auto";
-+	case BOOT_DEVICE_MMC1:
-+		return "0:auto";
-+	case BOOT_DEVICE_MMC2:
-+		return "1:auto";
-+	default:
-+		return CONFIG_ENV_FAT_DEVICE_AND_PART;
 +	}
 +}
 +#endif /* CONFIG_ENV_IS_IN_FAT */
@@ -859,81 +834,6 @@ index 0000000000..6f9080e2af
 +
 +	return 0;
 +}
-diff --git a/board/olimex/a13_olinuxino/gmac.c b/board/olimex/a13_olinuxino/gmac.c
-new file mode 100644
-index 0000000000..a2af9f4a6e
---- /dev/null
-+++ b/board/olimex/a13_olinuxino/gmac.c
-@@ -0,0 +1,69 @@
-+/*
-+ * Copyright (C) 2019 Olimex Ltd.
-+ *   Author: Stefan Mavrodiev <stefan@olimex.com>
-+ *
-+ * SPDX-License-Identifier: (GPL-2.0+ OR MIT)
-+ */
-+#include <common.h>
-+#include <netdev.h>
-+#include <miiphy.h>
-+#include <asm/gpio.h>
-+#include <asm/io.h>
-+#include <asm/arch/clock.h>
-+#include <asm/arch/gpio.h>
-+
-+#include <olimex/boards.h>
-+
-+void eth_init_board(void)
-+{
-+	static struct sunxi_ccm_reg *const ccm =
-+		(struct sunxi_ccm_reg *)SUNXI_CCM_BASE;
-+	enum olinuxino_phy_mode mode;
-+	uint8_t tx_delay = 0;
-+	int pin;
-+
-+	/**
-+	 * A20-SOM204-1G-M (10257) has only megabit interface
-+	 */
-+	if (olinuxino_get_board_id() == 10257)
-+		return;
-+
-+	mode = olinuxino_get_phy_mode();
-+	if (mode == OLINUXINO_PHY_MODE_UNKNOWN)
-+		return;
-+
-+	tx_delay = olinuxino_phy_txdelay();
-+
-+	/* Set up clock gating */
-+	setbits_le32(&ccm->ahb_gate1, 0x1 << AHB_GATE_OFFSET_GMAC);
-+
-+	if (mode == OLINUXINO_PHY_MODE_RGMII) {
-+		setbits_le32(&ccm->gmac_clk_cfg,
-+			     CCM_GMAC_CTRL_TX_CLK_DELAY(tx_delay));
-+		setbits_le32(&ccm->gmac_clk_cfg,
-+			     CCM_GMAC_CTRL_TX_CLK_SRC_INT_RGMII |
-+			     CCM_GMAC_CTRL_GPIT_RGMII);
-+	} else {
-+		setbits_le32(&ccm->gmac_clk_cfg,
-+			     CCM_GMAC_CTRL_TX_CLK_SRC_MII |
-+			     CCM_GMAC_CTRL_GPIT_MII);
-+	}
-+
-+	/* Configure pins for GMAC */
-+	for (pin = SUNXI_GPA(0); pin <= SUNXI_GPA(16); pin++) {
-+
-+		/* skip unused pins in RGMII mode */
-+		if (mode == OLINUXINO_PHY_MODE_RGMII ) {
-+			if (pin == SUNXI_GPA(9) || pin == SUNXI_GPA(14))
-+				continue;
-+		}
-+
-+		sunxi_gpio_set_cfgpin(pin, SUN7I_GPA_GMAC);
-+		sunxi_gpio_set_drv(pin, 3);
-+	}
-+
-+	/* A20-OLinuXino-MICRO needs additional signal for TXERR */
-+	if (olinuxino_get_board_family() == OLINUXINO_MICRO) {
-+		sunxi_gpio_set_cfgpin(SUNXI_GPA(17),  SUN7I_GPA_GMAC);
-+	}
-+}
 diff --git a/board/olimex/common/boards.c b/board/olimex/common/boards.c
 index 2b0fcbab41..e6e1c5e3fe 100644
 --- a/board/olimex/common/boards.c
@@ -961,10 +861,22 @@ index 2b0fcbab41..e6e1c5e3fe 100644
  		.id = 0,
  	}
 diff --git a/board/olimex/common/sunxi/board.c b/board/olimex/common/sunxi/board.c
-index c84b84d310..bf3cf42102 100644
+index c84b84d310..e62995a268 100644
 --- a/board/olimex/common/sunxi/board.c
 +++ b/board/olimex/common/sunxi/board.c
-@@ -933,6 +933,8 @@ err:
+@@ -765,6 +765,11 @@ static void setup_environment(const void *fdt)
+ 	sprintf(cmd,"env set -f board_id %d", eeprom->id);
+ 	run_command(cmd, 0);
+ #endif
++#elif defined(CONFIG_TARGET_A13_OLINUXINO)
++        /* Set board ID */
++        sprintf(cmd,"env set -f board_id %d", eeprom->id);
++        run_command(cmd, 0);
++#endif
+ 
+ 	ret = sunxi_get_sid(sid);
+ 	if (ret == 0 && sid[0] != 0) {
+@@ -933,6 +938,8 @@ err:
  	 * If LCD-OLinuXino is detected, check if there are any overlays
  	 * set in the environmet. If so, try to load them
  	 */
@@ -973,7 +885,7 @@ index c84b84d310..bf3cf42102 100644
  	if (!lcd_olinuxino_is_present())
  		return;
  
-@@ -953,6 +955,7 @@ err:
+@@ -953,6 +960,7 @@ err:
  			fdt_set_totalsize(blob, fdt_totalsize(backup));
  		}
  	}
@@ -982,7 +894,7 @@ index c84b84d310..bf3cf42102 100644
  #else
  static void olinuxino_load_overlays(void *blob) {}
 diff --git a/configs/A13-OLinuXino_defconfig b/configs/A13-OLinuXino_defconfig
-index 5163b331f8..de08c3ea70 100644
+index 5163b331f8..4e8f7d83f3 100644
 --- a/configs/A13-OLinuXino_defconfig
 +++ b/configs/A13-OLinuXino_defconfig
 @@ -3,7 +3,7 @@ CONFIG_ARCH_SUNXI=y
@@ -1013,7 +925,7 @@ index 5163b331f8..de08c3ea70 100644
 +
 +CONFIG_ENV_IS_IN_EXT4=y
 +CONFIG_ENV_EXT4_INTERFACE="mmc"
-+CONFIG_ENV_EXT4_DEVICE_AND_PART=""
++CONFIG_ENV_EXT4_DEVICE_AND_PART="0:auto"
 +CONFIG_ENV_EXT4_FILE="/uboot.env"
 +CONFIG_FIT_BEST_MATCH=y
 diff --git a/include/configs/a13_olinuxino.h b/include/configs/a13_olinuxino.h
