@@ -1,4 +1,4 @@
-From ec2840a37c271c8f94070588610b7c16cf7e7c27 Mon Sep 17 00:00:00 2001
+From 578a80ac27b288b1616dbbea0ea224a94aa1582e Mon Sep 17 00:00:00 2001
 From: hehopmajieh <gamishev@gmail.com>
 Date: Tue, 17 Mar 2020 13:18:26 +0200
 Subject: [PATCH] sun5i_support
@@ -516,7 +516,7 @@ index 0000000000..ed928e9c44
 +endif
 diff --git a/board/olimex/a13_olinuxino/board.c b/board/olimex/a13_olinuxino/board.c
 new file mode 100644
-index 0000000000..f693df09a6
+index 0000000000..0dc878a5f6
 --- /dev/null
 +++ b/board/olimex/a13_olinuxino/board.c
 @@ -0,0 +1,164 @@
@@ -619,7 +619,7 @@ index 0000000000..f693df09a6
 +const char *env_fat_get_dev_part(void)
 +{
 +			return "0:auto";
-+	}
++	
 +}
 +#endif /* CONFIG_ENV_IS_IN_FAT */
 +
