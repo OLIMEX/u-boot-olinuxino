@@ -1,7 +1,7 @@
-From 578a80ac27b288b1616dbbea0ea224a94aa1582e Mon Sep 17 00:00:00 2001
+From edf326bcaf40d1d9529f78edbbd5749a05f30902 Mon Sep 17 00:00:00 2001
 From: hehopmajieh <gamishev@gmail.com>
-Date: Tue, 17 Mar 2020 13:18:26 +0200
-Subject: [PATCH] sun5i_support
+Date: Tue, 17 Mar 2020 13:42:52 +0200
+Subject: [PATCH] new version
 
 ---
  arch/arm/dts/Makefile                  |   2 +
@@ -861,21 +861,21 @@ index 2b0fcbab41..e6e1c5e3fe 100644
  		.id = 0,
  	}
 diff --git a/board/olimex/common/sunxi/board.c b/board/olimex/common/sunxi/board.c
-index c84b84d310..e62995a268 100644
+index c84b84d310..846c8caf10 100644
 --- a/board/olimex/common/sunxi/board.c
 +++ b/board/olimex/common/sunxi/board.c
-@@ -765,6 +765,11 @@ static void setup_environment(const void *fdt)
+@@ -764,6 +764,11 @@ static void setup_environment(const void *fdt)
+ 	/* Set board ID */
  	sprintf(cmd,"env set -f board_id %d", eeprom->id);
  	run_command(cmd, 0);
- #endif
++
 +#elif defined(CONFIG_TARGET_A13_OLINUXINO)
 +        /* Set board ID */
 +        sprintf(cmd,"env set -f board_id %d", eeprom->id);
 +        run_command(cmd, 0);
-+#endif
+ #endif
  
  	ret = sunxi_get_sid(sid);
- 	if (ret == 0 && sid[0] != 0) {
 @@ -933,6 +938,8 @@ err:
  	 * If LCD-OLinuXino is detected, check if there are any overlays
  	 * set in the environmet. If so, try to load them
