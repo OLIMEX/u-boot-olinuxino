@@ -55,7 +55,7 @@ build-targets:
 		cp $$builddir/.config $$builddir/config.$$platform; \
 		echo $$builddir/config.$$platform /usr/share/doc/u-boot-olinuxino/configs/ \
 			>> debian/build/targets; \
-		./scripts/get_default_envs.sh | tee $$builddir/uboot.env.txt | $$builddir/tools/mkenvimage -s 131072 -p 0x00 -o $$builddir/uboot.env -; \
+		./scripts/get_default_envs.sh $$builddir | tee $$builddir/uboot.env.txt | $$builddir/tools/mkenvimage -s 131072 -p 0x00 -o $$builddir/uboot.env -; \
 		echo $$builddir/uboot.env.txt /usr/lib/u-boot-olinuxino/$$platform/ \
 			>> debian/build/targets; \
 		echo $$builddir/uboot.env /usr/lib/u-boot-olinuxino/$$platform/ \
