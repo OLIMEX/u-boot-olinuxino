@@ -25,6 +25,12 @@ test:a20-olinuxino:
     DEFCONFIG: A20-OLinuXino_defconfig
   <<: *test_common
 
+test:a10-olinuxino:
+  variables:
+    CROSS_COMPILE: arm-linux-gnueabihf-
+    DEFCONFIG: A10-OLinuXino_defconfig
+  <<: *test_common
+
 test:a13-olinuxino:
   variables:
     CROSS_COMPILE: arm-linux-gnueabihf-

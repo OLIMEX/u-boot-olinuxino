@@ -3,3 +3,4 @@ libfdt_fix_relative_path_length.patch
 add_olinuxino_lime_emmc_dtb.patch
 olinuxino_support.patch
 sun5i_autodetect.patch
+sun4i_autodetect.patch

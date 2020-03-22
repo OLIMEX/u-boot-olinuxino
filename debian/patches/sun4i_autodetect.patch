@@ -1,0 +1,549 @@
+From ad6dca3f1051b55a6d0a21147ee4e2f428433292 Mon Sep 17 00:00:00 2001
+From: hehopmajieh <hehopmajieh@debian.bg>
+Date: Sun, 22 Mar 2020 17:26:17 +0200
+Subject: [PATCH] Sun4i basic support
+
+---
+ arch/arm/mach-sunxi/Kconfig            |  26 ++++-
+ board/olimex/a10_olinuxino/Kconfig     |  10 ++
+ board/olimex/a10_olinuxino/MAINTAINERS |   5 +
+ board/olimex/a10_olinuxino/Makefile    |  18 +++
+ board/olimex/a10_olinuxino/board.c     | 144 +++++++++++++++++++++++
+ board/olimex/a10_olinuxino/fdt.c       | 154 +++++++++++++++++++++++++
+ board/olimex/common/boards.c           |   6 +
+ board/olimex/common/sunxi/board.c      |   7 +-
+ configs/A10-OLinuXino_defconfig        |  43 +++++++
+ include/configs/a10_olinuxino.h        |  12 ++
+ 10 files changed, 423 insertions(+), 2 deletions(-)
+ create mode 100644 board/olimex/a10_olinuxino/Kconfig
+ create mode 100644 board/olimex/a10_olinuxino/MAINTAINERS
+ create mode 100644 board/olimex/a10_olinuxino/Makefile
+ create mode 100644 board/olimex/a10_olinuxino/board.c
+ create mode 100644 board/olimex/a10_olinuxino/fdt.c
+ create mode 100644 configs/A10-OLinuXino_defconfig
+ create mode 100644 include/configs/a10_olinuxino.h
+
+diff --git a/arch/arm/mach-sunxi/Kconfig b/arch/arm/mach-sunxi/Kconfig
+index ba55d59eff..c8fce7aa1b 100644
+--- a/arch/arm/mach-sunxi/Kconfig
++++ b/arch/arm/mach-sunxi/Kconfig
+@@ -340,6 +340,26 @@ config TARGET_A20_OLINUXINO
+ endchoice
+ endif
+ 
++if MACH_SUN4I
++choice
++        prompt "SUNXI profile select"
++
++config TARGET_SUN4I_DEFAULT
++        bool "Default sunxi target"
++        ---help---
++        Use the default profile for sunxi boards
++
++config TARGET_A10_OLINUXINO
++        bool "A10-OLinuXino board"
++        select I2C1_ENABLE
++        select SPL_SPI_SUNXI
++        ---help---
++        Use board autodetection feature on A10-OLinuXino boards
++
++endchoice
++endif
++
++
+ if MACH_SUN5I
+ choice
+         prompt "SUNXI profile select"
+@@ -598,7 +618,7 @@ config SYS_CLK_FREQ
+ 	default 1008000000 if MACH_SUN9I
+ 	default 888000000 if MACH_SUN50I_H6
+ 
+-if !TARGET_A20_OLINUXINO && !TARGET_A64_OLINUXINO && !TARGET_A13_OLINUXINO
++if !TARGET_A20_OLINUXINO && !TARGET_A64_OLINUXINO && !TARGET_A13_OLINUXINO  && !TARGET_A10_OLINUXINO
+ config SYS_CONFIG_NAME
+ 	default "sun4i" if MACH_SUN4I
+ 	default "sun5i" if MACH_SUN5I
+@@ -624,6 +644,10 @@ if TARGET_A13_OLINUXINO
+         source "board/olimex/a13_olinuxino/Kconfig"
+ endif
+ 
++if TARGET_A10_OLINUXINO
++        source "board/olimex/a10_olinuxino/Kconfig"
++endif
++
+ if TARGET_A64_OLINUXINO
+ 	source "board/olimex/a64_olinuxino/Kconfig"
+ endif
+diff --git a/board/olimex/a10_olinuxino/Kconfig b/board/olimex/a10_olinuxino/Kconfig
+new file mode 100644
+index 0000000000..ae61d83fad
+--- /dev/null
++++ b/board/olimex/a10_olinuxino/Kconfig
+@@ -0,0 +1,10 @@
++if TARGET_A10_OLINUXINO
++config SYS_BOARD
++	default "a10_olinuxino"
++
++config SYS_VENDOR
++	default "olimex"
++
++config SYS_CONFIG_NAME
++	default "a10_olinuxino"
++endif
+diff --git a/board/olimex/a10_olinuxino/MAINTAINERS b/board/olimex/a10_olinuxino/MAINTAINERS
+new file mode 100644
+index 0000000000..d1d0c62771
+--- /dev/null
++++ b/board/olimex/a10_olinuxino/MAINTAINERS
+@@ -0,0 +1,5 @@
++M:      Dimitar Gamishev <hehopmajieh@debian.bg>
++S:      Maintained
++F:      board/olimex/a10-olinuxino
++F:	include/configs/a10_olinuxino.h
++F:      configs/A10-OLinuXino_defconfig
+diff --git a/board/olimex/a10_olinuxino/Makefile b/board/olimex/a10_olinuxino/Makefile
+new file mode 100644
+index 0000000000..e16e0cb849
+--- /dev/null
++++ b/board/olimex/a10_olinuxino/Makefile
+@@ -0,0 +1,18 @@
++# SPDX-License-Identifier: GPL-2.0+
++#
++# Makefile
++#
++# Copyright (C) 2019 Olimex Ltd.
++#   Author: Dimitar Gamishev <hehopmajieh@debian.bg>
++
++obj-y	+= board.o
++obj-y	+= ../common/sunxi/board.o
++obj-y   += ../common/sys_eeprom.o
++obj-y	+= ../../sunxi/dram_sun4i_auto.o
++
++ifndef CONFIG_SPL_BUILD
++obj-y				+= ../common/boards.o
++obj-y				+= ../common/cmd.o
++obj-$(CONFIG_OF_BOARD_FIXUP)	+= fdt.o
++obj-$(CONFIG_VIDEO_LCD_OLINUXINO) += ../common/lcd_olinuxino.o
++endif
+diff --git a/board/olimex/a10_olinuxino/board.c b/board/olimex/a10_olinuxino/board.c
+new file mode 100644
+index 0000000000..ca1aad8a98
+--- /dev/null
++++ b/board/olimex/a10_olinuxino/board.c
+@@ -0,0 +1,144 @@
++/*
++ * Copyright (C) 2020 Olimex Ltd.
++ *   Author:  Dimitar Gamishev <hehopmajieh@debian.bg>
++ *   Stefan Mavrodiev <stefan@olimex.com>
++ * SPDX-License-Identifier: (GPL-2.0+ OR MIT)
++ */
++
++#include <common.h>
++#include <env_internal.h>
++#include <mmc.h>
++#include <spl.h>
++#include <asm/arch/gpio.h>
++#include <asm/arch/mmc.h>
++#include <asm/arch/spl.h>
++#include <asm/gpio.h>
++#include <axp_pmic.h>
++
++#include <olimex/boards.h>
++#include <olimex/sys_eeprom.h>
++
++DECLARE_GLOBAL_DATA_PTR;
++
++#ifdef CONFIG_SPL_BUILD
++void spl_board_init(void)
++{
++	printf("A10-Lime Board no eeprom found!\n ");
++	
++		eeprom->header = OLINUXINO_EEPROM_MAGIC;
++		eeprom->id = 9999;
++		eeprom->revision.major = 'A';
++		eeprom->revision.minor = 0;
++
++}
++#endif /* CONFIG_SPL_BUILD */
++
++#ifdef CONFIG_DISPLAY_BOARDINFO
++int show_board_info(void)
++{
++	char  rev[3];
++	const char *name;
++
++	name = olinuxino_get_board_name();
++
++	olinuxino_get_board_revision(rev);
++	printf("%-7s%s Rev.%s", "ID:", name, rev);
++
++	return 0;
++}
++#endif
++
++#ifdef CONFIG_BOARD_LATE_INIT
++int board_late_init(void)
++{
++	/*No need to late init*/
++
++	return 0;
++}
++#endif /* CONFIG_BOARD_LATE_INIT */
++
++#ifdef CONFIG_MULTI_DTB_FIT
++int board_fit_config_name_match(const char *name)
++{
++	const char *dtb = olinuxino_get_board_fdt();
++
++	return (!strncmp(name, dtb, strlen(dtb))) ? 0 : -1;
++}
++#endif /* CONFIG_MULTI_DTB_FIT */
++
++#ifdef CONFIG_ENV_IS_IN_EXT4
++const char *env_ext4_get_dev_part(void)
++{
++		return "0:auto";
++}
++#endif /* CONFIG_ENV_IS_IN_EXT4 */
++
++#ifdef CONFIG_ENV_IS_IN_FAT
++const char *env_fat_get_dev_part(void)
++{
++			return "0:auto";
++	
++}
++#endif /* CONFIG_ENV_IS_IN_FAT */
++
++#if CONFIG_ENV_IS_IN_SPI_FLASH
++static enum env_location env_get_location_spi(int prio)
++{
++	switch (prio) {
++	case 0:
++		return ENVL_SPI_FLASH;
++	case 1:
++		return ENVL_EXT4;
++	case 2:
++		return ENVL_FAT;
++	default:
++		break;
++	}
++
++	return ENVL_UNKNOWN;
++}
++#endif
++
++static enum env_location env_get_location_default(int prio)
++{
++	switch (prio) {
++	case 0:
++		return ENVL_EXT4;
++	case 1:
++		return ENVL_FAT;
++	default:
++		break;
++	}
++
++	return ENVL_UNKNOWN;
++}
++
++enum env_location env_get_location(enum env_operation op, int prio)
++{
++	uint32_t boot = sunxi_get_boot_device();
++
++	switch (boot) {
++	case BOOT_DEVICE_BOARD:
++#ifdef CONFIG_ENV_IS_IN_SPI_FLASH
++		if (olinuxino_board_has_spi())
++			return env_get_location_spi(prio);
++		else
++#endif
++			return env_get_location_default(prio);
++
++#ifdef CONFIG_ENV_IS_IN_SPI_FLASH
++	case BOOT_DEVICE_SPI:
++		return env_get_location_spi(prio);
++#endif
++
++	case BOOT_DEVICE_MMC1:
++	case BOOT_DEVICE_MMC2:
++		break;
++
++	default:
++		break;
++
++	}
++
++	return env_get_location_default(prio);
++}
+diff --git a/board/olimex/a10_olinuxino/fdt.c b/board/olimex/a10_olinuxino/fdt.c
+new file mode 100644
+index 0000000000..69f7d79d99
+--- /dev/null
++++ b/board/olimex/a10_olinuxino/fdt.c
+@@ -0,0 +1,154 @@
++/*
++ * Copyright (C) 2019 Olimex Ltd.
++ *   Author: Stefan Mavrodiev <stefan@olimex.com>
++ *
++ * SPDX-License-Identifier: (GPL-2.0+ OR MIT)
++ */
++#include <common.h>
++#include <linux/ctype.h>
++
++#include <olimex/boards.h>
++
++static int _fdt_path_offset(void *fdt, const char *path)
++{
++	int offset;
++
++	offset = fdt_path_offset(fdt, path);
++	if (offset < 0)
++		debug("%s: not found: %s (%d)\n",
++		      path, fdt_strerror(offset), offset);
++
++	return offset;
++}
++
++static int board_set_compatible(void *fdt)
++{
++	char name[64], *p;
++	int offset;
++	int ret;
++
++	/* Set compatible string */
++	snprintf(name, 64, "olimex,%s", olinuxino_get_board_name());
++	p = name;
++	for (; *p; p++)
++		*p = tolower(*p);
++
++	offset = _fdt_path_offset(fdt, "/");
++	ret = fdt_setprop_string(fdt, offset, "compatible", name);
++	if (ret) {
++		printf("%s@%d\n", __func__, __LINE__);
++		return ret;
++	}
++
++	return 0;
++}
++
++static int board_enable_spi_flash(void *fdt)
++{
++	uint32_t phandle;
++	int offset, ret = 0;
++
++	offset = _fdt_path_offset(fdt, "/soc/pinctrl@1c20800");
++	if (offset < 0)
++		return offset;
++
++	offset = fdt_add_subnode(fdt, offset, "spi0-pc-pins");
++	if (offset < 0) {
++		printf("%s@%d\n", __func__, __LINE__);
++		return offset;
++	}
++
++	/* Generate phandle */
++	phandle = fdt_create_phandle(fdt, offset);
++	if (!phandle) {
++		printf("%s@%d\n", __func__, __LINE__);
++		return -1;
++	}
++
++	ret |= fdt_setprop_string(fdt, offset, "function" , "spi0");
++	ret |= fdt_setprop_string(fdt, offset, "pins" , "PC0");
++	ret |= fdt_appendprop_string(fdt, offset, "pins", "PC1");
++	ret |= fdt_appendprop_string(fdt, offset, "pins", "PC2");
++	ret |= fdt_appendprop_string(fdt, offset, "pins", "PC23");
++	if (ret < 0) {
++		printf("%s@%d\n", __func__, __LINE__);
++		return ret;
++	}
++
++	offset = _fdt_path_offset(fdt, "/soc/spi@1c05000");
++	if (offset < 0)
++		return offset;
++
++	/* Change status to okay */
++	ret |= fdt_status_okay(fdt, offset);
++	ret |= fdt_setprop_u32(fdt, offset, "spi-max-frequency", 20000000);
++	ret |= fdt_setprop_u32(fdt, offset, "pinctrl-0", phandle);
++	ret |= fdt_setprop_string(fdt, offset, "pinctrl-names", "default");
++	if (ret < 0) {
++		printf("%s@%d\n", __func__, __LINE__);
++		return ret;
++	}
++
++	offset = fdt_add_subnode(fdt, offset, "spi-nor@0");
++	if (offset < 0) {
++		printf("%s@%d\n", __func__, __LINE__);
++		return offset;
++	}
++
++	ret |= fdt_status_okay(fdt, offset);
++	ret |= fdt_setprop_u32(fdt, offset, "spi-max-frequency", 20000000);
++	ret |= fdt_setprop_u32(fdt, offset, "reg", 0);
++	ret |= fdt_setprop_u32(fdt, offset, "#size-cells", 1);
++	ret |= fdt_setprop_u32(fdt, offset, "#address-cells", 1);
++	ret |= fdt_setprop_string(fdt, offset, "compatible", "winbond,w25q128");
++	ret |= fdt_appendprop_string(fdt, offset, "compatible", "jedec,spi-nor");
++	ret |= fdt_appendprop_string(fdt, offset, "compatible", "spi-flash");
++	if (ret < 0) {
++		printf("%s@%d\n", __func__, __LINE__);
++		return ret;
++	}
++
++	offset = _fdt_path_offset(fdt, "/aliases");
++	if (offset < 0)
++		return offset;
++
++	ret = fdt_setprop_string(fdt, offset, "spi0", "/soc/spi@1c05000");
++	if (ret < 0)
++		printf("%s@%d\n", __func__, __LINE__);
++
++	return ret;
++}
++
++static int board_disable_gmac(void *fdt)
++{
++
++	return 0;
++}
++
++static int board_enable_emac(void *fdt)
++{
++	return 0;
++}
++
++static int board_disable_sdio(void *fdt)
++{
++
++	return 0;
++
++}
++
++int board_fix_fdt(void *fdt)
++{
++ int ret;
++
++        ret = fdt_increase_size(fdt, 4096);
++        if (ret)
++                return ret;
++
++        ret = board_set_compatible(fdt);
++        if (ret)
++                return ret;
++
++
++	return 0;
++}
+diff --git a/board/olimex/common/boards.c b/board/olimex/common/boards.c
+index e6e1c5e3fe..12daae0a29 100644
+--- a/board/olimex/common/boards.c
++++ b/board/olimex/common/boards.c
+@@ -281,6 +281,12 @@ struct olinuxino_boards olinuxino_boards[] = {
+                 OLINUXINO_CONFIG(NONE, -1, MBYTES(512), COM)
+         },
+ #endif
++#if defined(CONFIG_TARGET_A10_OLINUXINO)
++        {
++                OLINUXINO_BOARD(9999, "A10-OLinuXino-Lime", "sun4i-a10-olinuxino-lime")
++                OLINUXINO_CONFIG(NAND, GBYTES(4), MBYTES(512), COM)
++        },
++#endif
+ 
+ 	{
+ 		.id = 0,
+diff --git a/board/olimex/common/sunxi/board.c b/board/olimex/common/sunxi/board.c
+index c077082024..cd3655b919 100644
+--- a/board/olimex/common/sunxi/board.c
++++ b/board/olimex/common/sunxi/board.c
+@@ -775,6 +775,11 @@ static void setup_environment(const void *fdt)
+         /* Set board ID */
+         sprintf(cmd,"env set -f board_id %d", eeprom->id);
+         run_command(cmd, 0);
++#elif defined(CONFIG_TARGET_A10_OLINUXINO)
++        /* Set board ID */
++        sprintf(cmd,"env set -f board_id %d", eeprom->id);
++        run_command(cmd, 0);
++
+ #endif
+ 
+ 	ret = sunxi_get_sid(sid);
+@@ -944,7 +949,7 @@ err:
+ 	 * If LCD-OLinuXino is detected, check if there are any overlays
+ 	 * set in the environmet. If so, try to load them
+ 	 */
+-#ifndef CONFIG_TARGET_A13_OLINUXINO
++#if !defined(CONFIG_TARGET_A13_OLINUXINO) && !defined(CONFIG_TARGET_A10_OLINUXINO)
+ 
+ 	if (!lcd_olinuxino_is_present())
+ 		return;
+diff --git a/configs/A10-OLinuXino_defconfig b/configs/A10-OLinuXino_defconfig
+new file mode 100644
+index 0000000000..79d3c6acca
+--- /dev/null
++++ b/configs/A10-OLinuXino_defconfig
+@@ -0,0 +1,43 @@
++CONFIG_ARM=y
++CONFIG_ARCH_SUNXI=y
++CONFIG_NR_DRAM_BANKS=1
++CONFIG_SPL=y
++CONFIG_MACH_SUN4I=y
++CONFIG_DRAM_CLK=480
++CONFIG_DRAM_EMR1=4
++CONFIG_SYS_CLK_FREQ=912000000
++CONFIG_MMC0_CD_PIN="PH1"
++CONFIG_I2C1_ENABLE=y
++CONFIG_SATAPWR="PC3"
++CONFIG_AHCI=y
++# CONFIG_SYS_MALLOC_CLEAR_ON_INIT is not set
++CONFIG_USE_PREBOOT=y
++CONFIG_SPL_I2C_SUPPORT=y
++# CONFIG_SPL_DOS_PARTITION is not set
++# CONFIG_SPL_EFI_PARTITION is not set
++CONFIG_DEFAULT_DEVICE_TREE="sun4i-a10-olinuxino-lime"
++CONFIG_SYS_RELOC_GD_ENV_ADDR=y
++CONFIG_SCSI_AHCI=y
++CONFIG_MII=y
++CONFIG_SUN4I_EMAC=y
++CONFIG_AXP_ALDO3_VOLT=2800
++CONFIG_AXP_ALDO4_VOLT=2800
++CONFIG_SCSI=y
++CONFIG_USB_EHCI_HCD=y
++CONFIG_USB_OHCI_HCD=y
++CONFIG_SYS_USB_EVENT_POLL_VIA_INT_QUEUE=y
++
++CONFIG_TARGET_A10_OLINUXINO=y
++CONFIG_SPL_BOARD_INIT=y
++CONFIG_BOARD_LATE_INIT=y
++CONFIG_OF_BOARD_FIXUP=y
++CONFIG_MMC_BROKEN_CD=y
++CONFIG_MULTI_DTB_FIT=y
++CONFIG_OF_LIST="sun4i-a10-olinuxino-lime"
++CONFIG_ENV_FAT_DEVICE_AND_PART=""
++
++CONFIG_ENV_IS_IN_EXT4=y
++CONFIG_ENV_EXT4_INTERFACE="mmc"
++CONFIG_ENV_EXT4_DEVICE_AND_PART="0:auto"
++CONFIG_ENV_EXT4_FILE="/uboot.env"
++CONFIG_FIT_BEST_MATCH=y
+diff --git a/include/configs/a10_olinuxino.h b/include/configs/a10_olinuxino.h
+new file mode 100644
+index 0000000000..68a127d7da
+--- /dev/null
++++ b/include/configs/a10_olinuxino.h
+@@ -0,0 +1,12 @@
++/*
++ * Copyright (C) 2020 Olimex Ltd.
++ *   Author: Dimitar Gamishev <hehopmajieh@debian.bg>
++ *
++ * SPDX-License-Identifier: (GPL-2.0+ OR MIT)
++ */
++#ifndef __A10_OLINUXINO_H
++#include <configs/sun5i.h>
++
++#define OLINUXINO_MMC_SECTOR		15
++
++#endif /* __A10_OLINUXINO_H */
+-- 
+2.17.1
+
