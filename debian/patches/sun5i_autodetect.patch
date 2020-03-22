@@ -1,7 +1,7 @@
-From edf326bcaf40d1d9529f78edbbd5749a05f30902 Mon Sep 17 00:00:00 2001
-From: hehopmajieh <gamishev@gmail.com>
-Date: Tue, 17 Mar 2020 13:42:52 +0200
-Subject: [PATCH] new version
+From d59a5f6eeda38aef0e7600b459b5829248e92769 Mon Sep 17 00:00:00 2001
+From: hehopmajieh <hehopmajieh@debian.bg>
+Date: Sun, 22 Mar 2020 15:56:38 +0200
+Subject: [PATCH] sun5i support patch v3
 
 ---
  arch/arm/dts/Makefile                  |   2 +
@@ -12,12 +12,12 @@ Subject: [PATCH] new version
  board/olimex/a13_olinuxino/MAINTAINERS |   5 +
  board/olimex/a13_olinuxino/Makefile    |  18 +++
  board/olimex/a13_olinuxino/board.c     | 164 ++++++++++++++++++++++
- board/olimex/a13_olinuxino/fdt.c       | 144 ++++++++++++++++++++
+ board/olimex/a13_olinuxino/fdt.c       | 154 +++++++++++++++++++++
  board/olimex/common/boards.c           |  15 ++
- board/olimex/common/sunxi/board.c      |   8 ++
+ board/olimex/common/sunxi/board.c      |  14 ++
  configs/A13-OLinuXino_defconfig        |  16 ++-
  include/configs/a13_olinuxino.h        |  12 ++
- 13 files changed, 778 insertions(+), 2 deletions(-)
+ 13 files changed, 794 insertions(+), 2 deletions(-)
  create mode 100644 arch/arm/dts/sun5i-a13-som-256.dts
  create mode 100644 arch/arm/dts/sun5i-a13-som-512.dts
  create mode 100644 board/olimex/a13_olinuxino/Kconfig
@@ -686,10 +686,10 @@ index 0000000000..0dc878a5f6
 +}
 diff --git a/board/olimex/a13_olinuxino/fdt.c b/board/olimex/a13_olinuxino/fdt.c
 new file mode 100644
-index 0000000000..6f9080e2af
+index 0000000000..69f7d79d99
 --- /dev/null
 +++ b/board/olimex/a13_olinuxino/fdt.c
-@@ -0,0 +1,144 @@
+@@ -0,0 +1,154 @@
 +/*
 + * Copyright (C) 2019 Olimex Ltd.
 + *   Author: Stefan Mavrodiev <stefan@olimex.com>
@@ -831,6 +831,16 @@ index 0000000000..6f9080e2af
 +
 +int board_fix_fdt(void *fdt)
 +{
++ int ret;
++
++        ret = fdt_increase_size(fdt, 4096);
++        if (ret)
++                return ret;
++
++        ret = board_set_compatible(fdt);
++        if (ret)
++                return ret;
++
 +
 +	return 0;
 +}
@@ -861,10 +871,23 @@ index 2b0fcbab41..e6e1c5e3fe 100644
  		.id = 0,
  	}
 diff --git a/board/olimex/common/sunxi/board.c b/board/olimex/common/sunxi/board.c
-index c84b84d310..846c8caf10 100644
+index c84b84d310..c077082024 100644
 --- a/board/olimex/common/sunxi/board.c
 +++ b/board/olimex/common/sunxi/board.c
-@@ -764,6 +764,11 @@ static void setup_environment(const void *fdt)
+@@ -631,6 +631,12 @@ void sunxi_board_init(void)
+ 	 * Only clock up the CPU to full speed if we are reasonably
+ 	 * assured it's being powered with suitable core voltage
+ 	 */
++#if defined(CONFIG_TARGET_A13_OLINUXINO)
++          power_failed |= axp_init();
++          if (power_failed)
++                power_failed=0;
++#endif
++
+ 	if (!power_failed)
+ 		clock_set_pll1(CONFIG_SYS_CLK_FREQ);
+ 	else
+@@ -764,6 +770,11 @@ static void setup_environment(const void *fdt)
  	/* Set board ID */
  	sprintf(cmd,"env set -f board_id %d", eeprom->id);
  	run_command(cmd, 0);
@@ -876,7 +899,7 @@ index c84b84d310..846c8caf10 100644
  #endif
  
  	ret = sunxi_get_sid(sid);
-@@ -933,6 +938,8 @@ err:
+@@ -933,6 +944,8 @@ err:
  	 * If LCD-OLinuXino is detected, check if there are any overlays
  	 * set in the environmet. If so, try to load them
  	 */
@@ -885,7 +908,7 @@ index c84b84d310..846c8caf10 100644
  	if (!lcd_olinuxino_is_present())
  		return;
  
-@@ -953,6 +960,7 @@ err:
+@@ -953,6 +966,7 @@ err:
  			fdt_set_totalsize(blob, fdt_totalsize(backup));
  		}
  	}
