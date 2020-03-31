@@ -4,3 +4,5 @@ add_olinuxino_lime_emmc_dtb.patch
 olinuxino_support.patch
 sun5i_autodetect.patch
 sun4i_autodetect.patch
+sun8i_s3_general.patch
+sun8i_s3_olinuxino.patch

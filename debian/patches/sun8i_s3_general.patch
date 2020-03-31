@@ -1,0 +1,299 @@
+From 1c85024a43bf6b55bd22b61d5f30cdd6e3d2f62a Mon Sep 17 00:00:00 2001
+From: hehopmajieh <hehopmajieh@debian.bg>
+Date: Tue, 31 Mar 2020 10:52:31 +0300
+Subject: [PATCH 1/2] General support for Sochip S3 SoC
+
+---
+ arch/arm/dts/Makefile                  |  2 +
+ arch/arm/dts/sun8i-s3-olinuxino.dts    | 83 ++++++++++++++++++++++++++
+ arch/arm/dts/sun8i-v3s.dtsi            |  7 +++
+ arch/arm/include/asm/arch-sunxi/gpio.h |  2 +
+ arch/arm/mach-sunxi/Kconfig            | 13 ++++
+ arch/arm/mach-sunxi/board.c            |  6 +-
+ arch/arm/mach-sunxi/cpu_info.c         |  4 +-
+ arch/arm/mach-sunxi/dram_sunxi_dw.c    |  2 +-
+ configs/S3-Olinuxino_defconfig         | 15 +++++
+ configs/sun8i-s3-general_defconfig     | 15 +++++
+ include/configs/sunxi-common.h         |  2 +
+ 11 files changed, 147 insertions(+), 4 deletions(-)
+ create mode 100644 arch/arm/dts/sun8i-s3-olinuxino.dts
+ create mode 100644 configs/S3-Olinuxino_defconfig
+ create mode 100644 configs/sun8i-s3-general_defconfig
+
+diff --git a/arch/arm/dts/Makefile b/arch/arm/dts/Makefile
+index 63fed0dc5c..55a2da075c 100644
+--- a/arch/arm/dts/Makefile
++++ b/arch/arm/dts/Makefile
+@@ -532,6 +532,8 @@ dtb-$(CONFIG_MACH_SUN8I_R40) += \
+ 	sun8i-v40-bananapi-m2-berry.dtb
+ dtb-$(CONFIG_MACH_SUN8I_V3S) += \
+ 	sun8i-v3s-licheepi-zero.dtb
++dtb-$(CONFIG_MACH_SUN8I_S3) += \
++        sun8i-s3-olinuxino.dtb
+ dtb-$(CONFIG_MACH_SUN50I_H5) += \
+ 	sun50i-h5-bananapi-m2-plus.dtb \
+ 	sun50i-h5-emlid-neutis-n5-devboard.dtb \
+diff --git a/arch/arm/dts/sun8i-s3-olinuxino.dts b/arch/arm/dts/sun8i-s3-olinuxino.dts
+new file mode 100644
+index 0000000000..edc38f8496
+--- /dev/null
++++ b/arch/arm/dts/sun8i-s3-olinuxino.dts
+@@ -0,0 +1,83 @@
++/*
++ * Copyright (C) 2020 Dimitar Gamishev <hehopmajieh@debian.bg>
++ *
++ * This file is dual-licensed: you can use it either under the terms
++ * of the GPL or the X11 license, at your option. Note that this dual
++ * licensing only applies to this file, and not this project as a
++ * whole.
++ *
++ *  a) This file is free software; you can redistribute it and/or
++ *     modify it under the terms of the GNU General Public License as
++ *     published by the Free Software Foundation; either version 2 of the
++ *     License, or (at your option) any later version.
++ *
++ *     This file is distributed in the hope that it will be useful,
++ *     but WITHOUT ANY WARRANTY; without even the implied warranty of
++ *     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ *     GNU General Public License for more details.
++ *
++ * Or, alternatively,
++ *
++ *  b) Permission is hereby granted, free of charge, to any person
++ *     obtaining a copy of this software and associated documentation
++ *     files (the "Software"), to deal in the Software without
++ *     restriction, including without limitation the rights to use,
++ *     copy, modify, merge, publish, distribute, sublicense, and/or
++ *     sell copies of the Software, and to permit persons to whom the
++ *     Software is furnished to do so, subject to the following
++ *     conditions:
++ *
++ *     The above copyright notice and this permission notice shall be
++ *     included in all copies or substantial portions of the Software.
++ *
++ *     THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
++ *     EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
++ *     OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
++ *     NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
++ *     HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
++ *     WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
++ *     FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
++ *     OTHER DEALINGS IN THE SOFTWARE.
++ */
++
++/dts-v1/;
++#include "sun8i-v3s.dtsi"
++#include "sunxi-common-regulators.dtsi"
++
++/ {
++	model = "S3-OLinuXino";
++	compatible = "olimex,s3-olinuxino", "allwinner,sun8i-v3s";
++
++	aliases {
++		serial0 = &uart1;
++	};
++
++	chosen {
++		stdout-path = "serial0:115200n8";
++	};
++};
++
++&mmc0 {
++	pinctrl-0 = <&mmc0_pins_a>;
++	pinctrl-names = "default";
++	broken-cd;
++	bus-width = <4>;
++	vmmc-supply = <&reg_vcc3v3>;
++	status = "okay";
++};
++
++&uart1 {
++	pinctrl-0 = <&uart1_pins_a>;
++	pinctrl-names = "default";
++	status = "okay";
++};
++
++&usb_otg {
++	dr_mode = "otg";
++	status = "okay";
++};
++
++&usbphy {
++	usb0_id_det-gpio = <&pio 6 9 GPIO_ACTIVE_HIGH>;
++	status = "okay";
++};
+diff --git a/arch/arm/dts/sun8i-v3s.dtsi b/arch/arm/dts/sun8i-v3s.dtsi
+index ebefc0fefe..6087373e82 100644
+--- a/arch/arm/dts/sun8i-v3s.dtsi
++++ b/arch/arm/dts/sun8i-v3s.dtsi
+@@ -213,6 +213,13 @@
+ 				function = "uart0";
+ 				bias-pull-up;
+ 			};
++			
++			uart1_pins_a: uart1@0 {
++                                pins = "PG6", "PG7";
++                                function = "uart1";
++                                bias-pull-up;
++                        };
++
+ 
+ 			mmc0_pins_a: mmc0@0 {
+ 				pins = "PF0", "PF1", "PF2", "PF3",
+diff --git a/arch/arm/include/asm/arch-sunxi/gpio.h b/arch/arm/include/asm/arch-sunxi/gpio.h
+index 7adc31272c..b651bc3759 100644
+--- a/arch/arm/include/asm/arch-sunxi/gpio.h
++++ b/arch/arm/include/asm/arch-sunxi/gpio.h
+@@ -191,6 +191,7 @@ enum sunxi_gpio_number {
+ #define SUN8I_GPG_SDC1		2
+ #define SUN6I_GPG_TWI3		2
+ #define SUN5I_GPG_UART1		4
++#define SUN8I_S3_GPG_UART1	2
+ 
+ #define SUN6I_GPH_PWM		2
+ #define SUN8I_GPH_PWM		2
+@@ -222,6 +223,7 @@ enum sunxi_gpio_number {
+ 
+ #define SUN9I_GPN_R_RSB		3
+ 
++
+ /* GPIO pin pull-up/down config */
+ #define SUNXI_GPIO_PULL_DISABLE	0
+ #define SUNXI_GPIO_PULL_UP	1
+diff --git a/arch/arm/mach-sunxi/Kconfig b/arch/arm/mach-sunxi/Kconfig
+index c8fce7aa1b..d806c4b6f3 100644
+--- a/arch/arm/mach-sunxi/Kconfig
++++ b/arch/arm/mach-sunxi/Kconfig
+@@ -272,6 +272,18 @@ config MACH_SUN9I
+ 	select SUN8I_RSB
+ 	select SUPPORT_SPL
+ 
++config MACH_SUN8I_S3
++        bool "sun8i (Allwinner S3)"
++        select CPU_V7A
++        select CPU_V7_HAS_NONSEC
++        select CPU_V7_HAS_VIRT
++        select ARCH_SUPPORT_PSCI
++        select SUNXI_GEN_SUN6I
++        select SUNXI_DRAM_DW
++        select SUNXI_DRAM_DW_16BIT
++        select SUPPORT_SPL
++        select ARMV7_BOOT_SEC_DEFAULT if OLD_SUNXI_KERNEL_COMPAT
++
+ config MACH_SUN50I
+ 	bool "sun50i (Allwinner A64)"
+ 	select ARM64
+@@ -320,6 +332,7 @@ config MACH_SUN8I
+ 	default y if MACH_SUNXI_H3_H5
+ 	default y if MACH_SUN8I_R40
+ 	default y if MACH_SUN8I_V3S
++	default y if MACH_SUN8I_S3
+ 
+ if MACH_SUN7I
+ choice
+diff --git a/arch/arm/mach-sunxi/board.c b/arch/arm/mach-sunxi/board.c
+index aa1d2230c9..fce11da208 100644
+--- a/arch/arm/mach-sunxi/board.c
++++ b/arch/arm/mach-sunxi/board.c
+@@ -117,10 +117,14 @@ static int gpio_init(void)
+ 	sunxi_gpio_set_cfgpin(SUNXI_GPB(9), SUN8I_A83T_GPB_UART0);
+ 	sunxi_gpio_set_cfgpin(SUNXI_GPB(10), SUN8I_A83T_GPB_UART0);
+ 	sunxi_gpio_set_pull(SUNXI_GPB(10), SUNXI_GPIO_PULL_UP);
+-#elif CONFIG_CONS_INDEX == 1 && defined(CONFIG_MACH_SUN8I_V3S)
++#elif CONFIG_CONS_INDEX == 1 && defined(CONFIG_MACH_SUN8I_S3)  
+ 	sunxi_gpio_set_cfgpin(SUNXI_GPB(8), SUN8I_V3S_GPB_UART0);
+ 	sunxi_gpio_set_cfgpin(SUNXI_GPB(9), SUN8I_V3S_GPB_UART0);
+ 	sunxi_gpio_set_pull(SUNXI_GPB(9), SUNXI_GPIO_PULL_UP);
++#elif CONFIG_CONS_INDEX == 2 && defined(CONFIG_MACH_SUN8I_S3)
++	sunxi_gpio_set_cfgpin(SUNXI_GPG(6), SUN8I_S3_GPG_UART1);
++        sunxi_gpio_set_cfgpin(SUNXI_GPG(7), SUN8I_S3_GPG_UART1);
++        sunxi_gpio_set_pull(SUNXI_GPG(7), SUNXI_GPIO_PULL_UP);	
+ #elif CONFIG_CONS_INDEX == 1 && defined(CONFIG_MACH_SUN9I)
+ 	sunxi_gpio_set_cfgpin(SUNXI_GPH(12), SUN9I_GPH_UART0);
+ 	sunxi_gpio_set_cfgpin(SUNXI_GPH(13), SUN9I_GPH_UART0);
+diff --git a/arch/arm/mach-sunxi/cpu_info.c b/arch/arm/mach-sunxi/cpu_info.c
+index ae4745bfec..3d83588527 100644
+--- a/arch/arm/mach-sunxi/cpu_info.c
++++ b/arch/arm/mach-sunxi/cpu_info.c
+@@ -88,8 +88,8 @@ int print_cpuinfo(void)
+ 	printf("CPU:   Allwinner H3 (SUN8I %04x)\n", sunxi_get_sram_id());
+ #elif defined CONFIG_MACH_SUN8I_R40
+ 	printf("CPU:   Allwinner R40 (SUN8I %04x)\n", sunxi_get_sram_id());
+-#elif defined CONFIG_MACH_SUN8I_V3S
+-	printf("CPU:   Allwinner V3s (SUN8I %04x)\n", sunxi_get_sram_id());
++#elif defined CONFIG_MACH_SUN8I_V3S || defined CONFIG_MACH_SUN8I_S3
++        printf("CPU:   Allwinner V3s/S3 (SUN8I %04x)\n", sunxi_get_sram_id());
+ #elif defined CONFIG_MACH_SUN9I
+ 	puts("CPU:   Allwinner A80 (SUN9I)\n");
+ #elif defined CONFIG_MACH_SUN50I
+diff --git a/arch/arm/mach-sunxi/dram_sunxi_dw.c b/arch/arm/mach-sunxi/dram_sunxi_dw.c
+index 85e7a1874e..3c5263c5c8 100644
+--- a/arch/arm/mach-sunxi/dram_sunxi_dw.c
++++ b/arch/arm/mach-sunxi/dram_sunxi_dw.c
+@@ -724,7 +724,7 @@ unsigned long sunxi_dram_init(void)
+ 	uint16_t socid = SOCID_R40;
+ 	/* Currently we cannot support R40 with dual rank memory */
+ 	para.dual_rank = 0;
+-#elif defined(CONFIG_MACH_SUN8I_V3S)
++#elif defined(CONFIG_MACH_SUN8I_V3S) || defined(CONFIG_MACH_SUN8I_S3)
+ 	/* TODO: set delays and mbus priority for V3s */
+ 	uint16_t socid = SOCID_H3;
+ #elif defined(CONFIG_MACH_SUN50I)
+diff --git a/configs/S3-Olinuxino_defconfig b/configs/S3-Olinuxino_defconfig
+new file mode 100644
+index 0000000000..26c5d5cef6
+--- /dev/null
++++ b/configs/S3-Olinuxino_defconfig
+@@ -0,0 +1,15 @@
++CONFIG_ARM=y
++CONFIG_ARCH_SUNXI=y
++CONFIG_NR_DRAM_BANKS=1
++CONFIG_SPL=y
++CONFIG_MACH_SUN8I_S3=y
++CONFIG_DRAM_CLK=360
++CONFIG_DRAM_ZQ=14779
++CONFIG_CONS_INDEX=2
++# CONFIG_SPL_DOS_PARTITION is not set
++# CONFIG_SPL_EFI_PARTITION is not set
++CONFIG_DEFAULT_DEVICE_TREE="sun8i-s3-olinuxino"
++CONFIG_SYS_RELOC_GD_ENV_ADDR=y
++# CONFIG_NETDEVICES is not set
++CONFIG_SYS_USB_EVENT_POLL_VIA_INT_QUEUE=y
++
+diff --git a/configs/sun8i-s3-general_defconfig b/configs/sun8i-s3-general_defconfig
+new file mode 100644
+index 0000000000..26c5d5cef6
+--- /dev/null
++++ b/configs/sun8i-s3-general_defconfig
+@@ -0,0 +1,15 @@
++CONFIG_ARM=y
++CONFIG_ARCH_SUNXI=y
++CONFIG_NR_DRAM_BANKS=1
++CONFIG_SPL=y
++CONFIG_MACH_SUN8I_S3=y
++CONFIG_DRAM_CLK=360
++CONFIG_DRAM_ZQ=14779
++CONFIG_CONS_INDEX=2
++# CONFIG_SPL_DOS_PARTITION is not set
++# CONFIG_SPL_EFI_PARTITION is not set
++CONFIG_DEFAULT_DEVICE_TREE="sun8i-s3-olinuxino"
++CONFIG_SYS_RELOC_GD_ENV_ADDR=y
++# CONFIG_NETDEVICES is not set
++CONFIG_SYS_USB_EVENT_POLL_VIA_INT_QUEUE=y
++
+diff --git a/include/configs/sunxi-common.h b/include/configs/sunxi-common.h
+index 0ef289fd64..1f3683a385 100644
+--- a/include/configs/sunxi-common.h
++++ b/include/configs/sunxi-common.h
+@@ -244,6 +244,8 @@ extern int soft_i2c_gpio_scl;
+ #endif
+ #elif CONFIG_CONS_INDEX == 2 && defined(CONFIG_MACH_SUN5I)
+ #define OF_STDOUT_PATH		"/soc@01c00000/serial@01c28400:115200"
++#elif CONFIG_CONS_INDEX == 2 && defined(CONFIG_MACH_SUN8I_S3)
++#define OF_STDOUT_PATH          "/soc@01c00000/serial@01c28400:115200"
+ #elif CONFIG_CONS_INDEX == 3 && defined(CONFIG_MACH_SUN8I)
+ #define OF_STDOUT_PATH		"/soc@01c00000/serial@01c28800:115200"
+ #elif CONFIG_CONS_INDEX == 5 && defined(CONFIG_MACH_SUN8I)
+-- 
+2.17.1
+

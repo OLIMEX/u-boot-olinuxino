@@ -136,6 +136,11 @@ done
 
 if [[ -z "${TARGET}" ]]; then
 	case ${soc} in
+		"sun4i-a10")
+                        TARGET="a10-olinuxino"
+                        INSTALL_FUNC=install_sunxi
+                        ;;
+
 		"sun5i-a13")
 			TARGET="a13-olinuxino"
 			INSTALL_FUNC=install_sunxi
@@ -145,6 +150,11 @@ if [[ -z "${TARGET}" ]]; then
 			TARGET="a20-olinuxino"
 			INSTALL_FUNC=install_sunxi
 			;;
+		
+		"sun8i-s3")
+                        TARGET="s3-olinuxino"
+                        INSTALL_FUNC=install_sunxi
+                        ;;
 
 		"sun50i-a64")
 			TARGET="a64-olinuxino"

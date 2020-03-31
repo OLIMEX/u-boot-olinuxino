@@ -1,0 +1,862 @@
+From 53f037f30d7dc42bc7108202a919437f1a856e9e Mon Sep 17 00:00:00 2001
+From: hehopmajieh <hehopmajieh@debian.bg>
+Date: Tue, 31 Mar 2020 12:44:16 +0300
+Subject: [PATCH 2/2] Default configuration for S3-OLinuXino
+
+---
+ arch/arm/dts/sun8i-s3-olinuxino.dts    |  20 +++
+ arch/arm/dts/sun8i-v3s.dtsi            |  43 +++++
+ arch/arm/include/asm/arch-sunxi/gpio.h |   1 +
+ arch/arm/mach-sunxi/Kconfig            |  30 +++-
+ board/olimex/common/boards.c           |   6 +
+ board/olimex/common/sunxi/board.c      |  13 +-
+ board/olimex/s3_olinuxino/Kconfig      |  10 ++
+ board/olimex/s3_olinuxino/MAINTAINERS  |   5 +
+ board/olimex/s3_olinuxino/Makefile     |  16 ++
+ board/olimex/s3_olinuxino/board.c      | 174 +++++++++++++++++++++
+ board/olimex/s3_olinuxino/fdt.c        | 208 +++++++++++++++++++++++++
+ board/olimex/s3_olinuxino/gmac.c       |  69 ++++++++
+ configs/S3-OLinuXino_defconfig         |  37 +++++
+ include/configs/s3_olinuxino.h         |  20 +++
+ 14 files changed, 648 insertions(+), 4 deletions(-)
+ create mode 100644 board/olimex/s3_olinuxino/Kconfig
+ create mode 100644 board/olimex/s3_olinuxino/MAINTAINERS
+ create mode 100644 board/olimex/s3_olinuxino/Makefile
+ create mode 100644 board/olimex/s3_olinuxino/board.c
+ create mode 100644 board/olimex/s3_olinuxino/fdt.c
+ create mode 100644 board/olimex/s3_olinuxino/gmac.c
+ create mode 100644 configs/S3-OLinuXino_defconfig
+ create mode 100644 include/configs/s3_olinuxino.h
+
+diff --git a/arch/arm/dts/sun8i-s3-olinuxino.dts b/arch/arm/dts/sun8i-s3-olinuxino.dts
+index edc38f8496..f4ad2fb966 100644
+--- a/arch/arm/dts/sun8i-s3-olinuxino.dts
++++ b/arch/arm/dts/sun8i-s3-olinuxino.dts
+@@ -72,6 +72,26 @@
+ 	status = "okay";
+ };
+ 
++&i2c0 {
++        status = "okay";
++
++        axp209: pmic@34 {
++                reg = <0x34>;
++                interrupt-parent = <&nmi_intc>;
++                interrupts = <0 IRQ_TYPE_LEVEL_LOW>;
++        };
++};
++
++&i2c1 {
++        status = "okay";
++
++        eeprom: eeprom@50 {
++                compatible = "atmel,24c16";
++                reg = <0x50>;
++                pagesize = <16>;
++        };
++};
++
+ &usb_otg {
+ 	dr_mode = "otg";
+ 	status = "okay";
+diff --git a/arch/arm/dts/sun8i-v3s.dtsi b/arch/arm/dts/sun8i-v3s.dtsi
+index 6087373e82..b2e287bb40 100644
+--- a/arch/arm/dts/sun8i-v3s.dtsi
++++ b/arch/arm/dts/sun8i-v3s.dtsi
+@@ -152,6 +152,14 @@
+ 			#address-cells = <1>;
+ 			#size-cells = <0>;
+ 		};
++		
++		 nmi_intc: interrupt-controller@1c00030 {
++                        compatible = "allwinner,sun7i-a20-sc-nmi";
++                        interrupt-controller;
++                        #interrupt-cells = <2>;
++                        reg = <0x01c00030 0x0c>;
++                        interrupts = <GIC_SPI 0 IRQ_TYPE_LEVEL_HIGH>;
++                };
+ 
+ 		usb_otg: usb@01c19000 {
+ 			compatible = "allwinner,sun8i-h3-musb";
+@@ -219,7 +227,17 @@
+                                 function = "uart1";
+                                 bias-pull-up;
+                         };
++			
++			i2c0_pins: i2c0-pins {
++                                pins = "PB6", "PB7";
++                                function = "i2c0";
++                        };
+ 
++                        i2c1_pins: i2c1-pins {
++                                pins = "PE21", "PE22";
++                                function = "i2c1";
++
++                        };
+ 
+ 			mmc0_pins_a: mmc0@0 {
+ 				pins = "PF0", "PF1", "PF2", "PF3",
+@@ -277,6 +295,31 @@
+ 			status = "disabled";
+ 		};
+ 
++		i2c0: i2c@1c2ac00 {
++                        compatible = "allwinner,sun6i-a31-i2c";
++                        reg = <0x01c2ac00 0x400>;
++                        interrupts = <GIC_SPI 6 IRQ_TYPE_LEVEL_HIGH>;
++                        clocks = <&ccu CLK_BUS_I2C0>;
++                        resets = <&ccu RST_BUS_I2C0>;
++                        pinctrl-names = "default";
++                        pinctrl-0 = <&i2c0_pins>;
++                        status = "disabled";
++                        #address-cells = <1>;
++                        #size-cells = <0>;
++                };
++
++                i2c1: i2c@1c2b000 {
++                        compatible = "allwinner,sun6i-a31-i2c";
++                        reg = <0x01c2b000 0x400>;
++                        interrupts = <GIC_SPI 7 IRQ_TYPE_LEVEL_HIGH>;
++                        clocks = <&ccu CLK_BUS_I2C1>;
++                        resets = <&ccu RST_BUS_I2C1>;
++                        status = "disabled";
++                        #address-cells = <1>;
++                        #size-cells = <0>;
++                };
++
++
+ 		gic: interrupt-controller@01c81000 {
+ 			compatible = "arm,cortex-a7-gic", "arm,cortex-a15-gic";
+ 			reg = <0x01c81000 0x1000>,
+diff --git a/arch/arm/include/asm/arch-sunxi/gpio.h b/arch/arm/include/asm/arch-sunxi/gpio.h
+index b651bc3759..e4327662e0 100644
+--- a/arch/arm/include/asm/arch-sunxi/gpio.h
++++ b/arch/arm/include/asm/arch-sunxi/gpio.h
+@@ -165,6 +165,7 @@ enum sunxi_gpio_number {
+ #define SUN8I_A83T_GPB_UART0	2
+ #define SUN8I_V3S_GPB_UART0	3
+ #define SUN50I_GPB_UART0	4
++#define SUN8I_S3_GPB_TWI1	2
+ 
+ #define SUNXI_GPC_NAND		2
+ #define SUNXI_GPC_SPI0		3
+diff --git a/arch/arm/mach-sunxi/Kconfig b/arch/arm/mach-sunxi/Kconfig
+index d806c4b6f3..1186defaa4 100644
+--- a/arch/arm/mach-sunxi/Kconfig
++++ b/arch/arm/mach-sunxi/Kconfig
+@@ -410,6 +410,27 @@ config TARGET_A64_OLINUXINO
+ endchoice
+ endif
+ 
++if MACH_SUN8I_S3
++choice
++	prompt "SUNXI profile select"
++
++config TARGET_SUN8I_S3_DEFAULT
++	bool "Default sunxi target"
++	---help---
++	Use the default profile for sunxi boards
++
++config TARGET_S3_OLINUXINO
++	bool "S3-OLinuXino board"
++	select I2C1_ENABLE
++	select SPL_SPI_SUNXI
++	---help---
++	Use board autodetection feature on S3-OLinuXino boards
++
++endchoice
++endif
++
++
++
+ config RESERVE_ALLWINNER_BOOT0_HEADER
+ 	bool "reserve space for Allwinner boot0 header"
+ 	select ENABLE_ARM_SOC_BOOT0_HOOK
+@@ -631,13 +652,14 @@ config SYS_CLK_FREQ
+ 	default 1008000000 if MACH_SUN9I
+ 	default 888000000 if MACH_SUN50I_H6
+ 
+-if !TARGET_A20_OLINUXINO && !TARGET_A64_OLINUXINO && !TARGET_A13_OLINUXINO  && !TARGET_A10_OLINUXINO
++if !TARGET_A20_OLINUXINO && !TARGET_A64_OLINUXINO && !TARGET_A13_OLINUXINO  && !TARGET_A10_OLINUXINO && !TARGET_S3_OLINUXINO
+ config SYS_CONFIG_NAME
+ 	default "sun4i" if MACH_SUN4I
+ 	default "sun5i" if MACH_SUN5I
+ 	default "sun6i" if MACH_SUN6I
+ 	default "sun7i" if MACH_SUN7I
+ 	default "sun8i" if MACH_SUN8I
++	default "sun8i" if MACH_SUN8I_S3
+ 	default "sun9i" if MACH_SUN9I
+ 	default "sun50i" if MACH_SUN50I
+ 	default "sun50i" if MACH_SUN50I_H6
+@@ -665,6 +687,10 @@ if TARGET_A64_OLINUXINO
+ 	source "board/olimex/a64_olinuxino/Kconfig"
+ endif
+ 
++if TARGET_S3_OLINUXINO
++        source "board/olimex/s3_olinuxino/Kconfig"
++endif
++
+ config UART0_PORT_F
+ 	bool "UART0 on MicroSD breakout board"
+ 	default n
+@@ -1109,7 +1135,7 @@ config SPL_STACK_R_ADDR
+ 
+ config SPL_SPI_SUNXI
+ 	bool "Support for SPI Flash on Allwinner SoCs in SPL"
+-	depends on MACH_SUN4I || MACH_SUN5I || MACH_SUN7I || MACH_SUNXI_H3_H5 || MACH_SUN50I
++	depends on MACH_SUN4I || MACH_SUN5I || MACH_SUN7I || MACH_SUNXI_H3_H5 || MACH_SUN50I || MACH_SUN8I_S3
+ 	help
+ 	  Enable support for SPI Flash. This option allows SPL to read from
+ 	  sunxi SPI Flash. It uses the same method as the boot ROM, so does
+diff --git a/board/olimex/common/boards.c b/board/olimex/common/boards.c
+index 12daae0a29..f88dfdd889 100644
+--- a/board/olimex/common/boards.c
++++ b/board/olimex/common/boards.c
+@@ -287,6 +287,12 @@ struct olinuxino_boards olinuxino_boards[] = {
+                 OLINUXINO_CONFIG(NAND, GBYTES(4), MBYTES(512), COM)
+         },
+ #endif
++#if defined(CONFIG_TARGET_A10_OLINUXINO)
++        {
++                OLINUXINO_BOARD(9998, "S3-OLinuXino-Lime", "sun8i-s3-olinuxino")
++                OLINUXINO_CONFIG(EMMC, GBYTES(4), MBYTES(128), COM)
++        },
++#endif
+ 
+ 	{
+ 		.id = 0,
+diff --git a/board/olimex/common/sunxi/board.c b/board/olimex/common/sunxi/board.c
+index cd3655b919..a1432c5cbb 100644
+--- a/board/olimex/common/sunxi/board.c
++++ b/board/olimex/common/sunxi/board.c
+@@ -98,6 +98,10 @@ void i2c_init_board(void)
+ 	sunxi_gpio_set_cfgpin(SUNXI_GPH(2), SUN50I_GPH_TWI1);
+ 	sunxi_gpio_set_cfgpin(SUNXI_GPH(3), SUN50I_GPH_TWI1);
+ 	clock_twi_onoff(1, 1);
++#elif defined(CONFIG_MACH_SUN8I_S3)
++        sunxi_gpio_set_cfgpin(SUNXI_GPB(8), SUN8I_S3_GPB_TWI1);
++        sunxi_gpio_set_cfgpin(SUNXI_GPB(9), SUN8I_S3_GPB_TWI1);
++        clock_twi_onoff(1, 1);
+ #endif
+ #endif
+ 
+@@ -631,7 +635,7 @@ void sunxi_board_init(void)
+ 	 * Only clock up the CPU to full speed if we are reasonably
+ 	 * assured it's being powered with suitable core voltage
+ 	 */
+-#if defined(CONFIG_TARGET_A13_OLINUXINO)
++#if defined(CONFIG_TARGET_A13_OLINUXINO) 
+           power_failed |= axp_init();
+           if (power_failed)
+                 power_failed=0;
+@@ -780,6 +784,11 @@ static void setup_environment(const void *fdt)
+         sprintf(cmd,"env set -f board_id %d", eeprom->id);
+         run_command(cmd, 0);
+ 
++#elif defined(CONFIG_TARGET_S3_OLINUXINO)
++        /* Set board ID */
++        sprintf(cmd,"env set -f board_id %d", eeprom->id);
++        run_command(cmd, 0);
++
+ #endif
+ 
+ 	ret = sunxi_get_sid(sid);
+@@ -949,7 +958,7 @@ err:
+ 	 * If LCD-OLinuXino is detected, check if there are any overlays
+ 	 * set in the environmet. If so, try to load them
+ 	 */
+-#if !defined(CONFIG_TARGET_A13_OLINUXINO) && !defined(CONFIG_TARGET_A10_OLINUXINO)
++#if !defined(CONFIG_TARGET_A13_OLINUXINO) && !defined(CONFIG_TARGET_A10_OLINUXINO) && !defined(CONFIG_TARGET_S3_OLINUXINO)
+ 
+ 	if (!lcd_olinuxino_is_present())
+ 		return;
+diff --git a/board/olimex/s3_olinuxino/Kconfig b/board/olimex/s3_olinuxino/Kconfig
+new file mode 100644
+index 0000000000..0bcbb199da
+--- /dev/null
++++ b/board/olimex/s3_olinuxino/Kconfig
+@@ -0,0 +1,10 @@
++if TARGET_S3_OLINUXINO
++config SYS_BOARD
++	default "s3_olinuxino"
++
++config SYS_VENDOR
++	default "olimex"
++
++config SYS_CONFIG_NAME
++	default "s3_olinuxino"
++endif
+diff --git a/board/olimex/s3_olinuxino/MAINTAINERS b/board/olimex/s3_olinuxino/MAINTAINERS
+new file mode 100644
+index 0000000000..fdfa2507d9
+--- /dev/null
++++ b/board/olimex/s3_olinuxino/MAINTAINERS
+@@ -0,0 +1,5 @@
++M:      Mitko Gamishev <hehopmajieh@debian.bg>
++S:      Maintained
++F:      board/olimex/s3-olinuxino
++F:	include/configs/s3_olinuxino.h
++F:      configs/S3-OLinuXino_defconfig
+diff --git a/board/olimex/s3_olinuxino/Makefile b/board/olimex/s3_olinuxino/Makefile
+new file mode 100644
+index 0000000000..dff9692f83
+--- /dev/null
++++ b/board/olimex/s3_olinuxino/Makefile
+@@ -0,0 +1,16 @@
++# SPDX-License-Identifier: GPL-2.0+
++#
++# Makefile
++#
++# Copyright (C) 2019 Olimex Ltd.
++#   Author: Stefan Mavrodiev <stefan@olimex.com>
++
++obj-y	+= board.o
++obj-y	+= ../common/sunxi/board.o
++obj-y	+= ../common/sys_eeprom.o
++
++ifndef CONFIG_SPL_BUILD
++obj-y				+= ../common/boards.o
++obj-y				+= ../common/cmd.o
++obj-$(CONFIG_OF_BOARD_FIXUP)	+= fdt.o
++endif
+diff --git a/board/olimex/s3_olinuxino/board.c b/board/olimex/s3_olinuxino/board.c
+new file mode 100644
+index 0000000000..1ff1d7eada
+--- /dev/null
++++ b/board/olimex/s3_olinuxino/board.c
+@@ -0,0 +1,174 @@
++/*
++ * Copyright (C) 2020 Olimex Ltd.
++ *   Author: Stefan Mavrodiev <stefan@olimex.com>
++ *
++ * SPDX-License-Identifier: (GPL-2.0+ OR MIT)
++ */
++
++#include <common.h>
++#include <env_internal.h>
++#include <mmc.h>
++#include <spl.h>
++#include <asm/arch/gpio.h>
++#include <asm/arch/mmc.h>
++#include <asm/arch/spl.h>
++#include <asm/gpio.h>
++
++#include <olimex/boards.h>
++#include <olimex/sys_eeprom.h>
++
++DECLARE_GLOBAL_DATA_PTR;
++
++#ifdef CONFIG_SPL_BUILD
++void spl_board_init(void)
++{
++
++//  This is prototype, we do not have board ID or revision !
++#if 0
++	uint32_t bootdev;
++
++	printf("Loading configuration from EEPROM: ");
++
++	if (!olinuxino_i2c_eeprom_read()) {
++		printf("OK\n");
++		printf("Verifying data: ");
++
++		if (olinuxino_eeprom_is_valid()) {
++			printf("OK\n");
++			return;
++		}
++		printf("Error\n");
++	}
++	printf("Error\n");
++
++	bootdev = spl_boot_device();
++	if (bootdev == BOOT_DEVICE_MMC1 || bootdev == BOOT_DEVICE_MMC2) {
++		printf("Loading configuration from MMC: ");
++		if (!olinuxino_mmc_eeprom_read()) {
++			printf("OK\n");
++			printf("Verifying data: ");
++
++			if (olinuxino_eeprom_is_valid()) {
++				printf("OK\n");
++				return;
++			
++			printf("Error\n");
++		}
++		printf("Error\n");
++	}
++
++	printf("\nWARNING: The board cannot be detected!\n");
++	printf("Please run:\n");
++	printf("\t\'olinuxino config list\' - Select your board\n");
++	printf("\t\'olinuxino config write\' - Store the board configuration\n");
++	printf("\t\'reset\' - Reset the board and load the configuration\n");
++	printf("\nUsing  fallback configuration.\n\n");
++#endif
++	eeprom->header = OLINUXINO_EEPROM_MAGIC;
++	eeprom->id = 9998;
++	eeprom->revision.major = 'A';
++	eeprom->revision.minor = 0;
++	eeprom->serial = 0;
++	memset(eeprom->mac, 0xFF, 12);
++}
++#endif /* CONFIG_SPL_BUILD */
++
++#ifdef CONFIG_DISPLAY_BOARDINFO
++int show_board_info(void)
++{
++	char mac[17], rev[3];
++	const char *name;
++
++	/**
++	 * In case of lowercase revision number, rewrite eeprom
++	 */
++	if (eeprom->revision.major >= 'a' && eeprom->revision.major <= 'z') {
++		eeprom->revision.major -= 0x20;
++
++		olinuxino_i2c_eeprom_write();
++	}
++
++	/* Get board name and compare if with eeprom content */
++	name = olinuxino_get_board_name();
++
++	olinuxino_get_board_revision(rev);
++	printf("%-7s%s Rev.%s", "ID:", name, rev);
++	printf("\n%-7s%08X\n", "SN:", eeprom->serial);
++
++	olinuxino_get_board_mac(mac);
++	printf("%-7s%s\n", "MAC:", mac);
++
++	return 0;
++}
++#endif
++
++#ifdef CONFIG_BOARD_LATE_INIT
++int board_late_init(void)
++{
++
++	return 0;
++}
++#endif /* CONFIG_BOARD_LATE_INIT */
++
++#ifdef CONFIG_MULTI_DTB_FIT
++int board_fit_config_name_match(const char *name)
++{
++	const char *dtb = olinuxino_get_board_fdt();
++
++	return (!strncmp(name, dtb, strlen(dtb))) ? 0 : -1;
++}
++#endif /* CONFIG_MULTI_DTB_FIT */
++
++#ifdef CONFIG_ENV_IS_IN_EXT4
++const char *env_ext4_get_dev_part(void)
++{
++	switch (sunxi_get_boot_device()) {
++	case BOOT_DEVICE_BOARD:
++	case BOOT_DEVICE_SPI:
++		if (eeprom->config.storage == 'e')
++			return "1:auto";
++		else
++			return "0:auto";
++	case BOOT_DEVICE_MMC1:
++		return "0:auto";
++	case BOOT_DEVICE_MMC2:
++		return "1:auto";
++	default:
++		return CONFIG_ENV_EXT4_DEVICE_AND_PART;
++	}
++}
++#endif /* CONFIG_ENV_IS_IN_EXT4 */
++
++#ifdef CONFIG_ENV_IS_IN_FAT
++const char *env_fat_get_dev_part(void)
++{
++	switch (sunxi_get_boot_device()) {
++	case BOOT_DEVICE_BOARD:
++	case BOOT_DEVICE_SPI:
++		if (eeprom->config.storage == 'e')
++			return "1:auto";
++		else
++			return "0:auto";
++	case BOOT_DEVICE_MMC1:
++		return "0:auto";
++	case BOOT_DEVICE_MMC2:
++		return "1:auto";
++	default:
++		return CONFIG_ENV_FAT_DEVICE_AND_PART;
++	}
++}
++#endif /* CONFIG_ENV_IS_IN_FAT */
++
++enum env_location env_get_location(enum env_operation op, int prio)
++{
++	switch (prio) {
++	case 0:
++		return ENVL_EXT4;
++	case 1:
++		return ENVL_FAT;
++	default:
++		break;
++	}
++
++	return ENVL_UNKNOWN;
++}
+diff --git a/board/olimex/s3_olinuxino/fdt.c b/board/olimex/s3_olinuxino/fdt.c
+new file mode 100644
+index 0000000000..c51f35d5cf
+--- /dev/null
++++ b/board/olimex/s3_olinuxino/fdt.c
+@@ -0,0 +1,208 @@
++/*
++ * Copyright (C) 2019 Olimex Ltd.
++ *   Author: Stefan Mavrodiev <stefan@olimex.com>
++ *
++ * SPDX-License-Identifier: (GPL-2.0+ OR MIT)
++ */
++#include <common.h>
++#include <linux/ctype.h>
++
++#include <olimex/boards.h>
++
++static int _fdt_path_offset(void *fdt, const char *path)
++{
++	int offset;
++
++	offset = fdt_path_offset(fdt, path);
++	if (offset < 0)
++		debug("%s: not found: %s (%d)\n",
++		      path, fdt_strerror(offset), offset);
++
++	return offset;
++}
++
++static int board_set_compatible(void *fdt)
++{
++	char name[64], *p;
++	int offset;
++	int ret;
++
++	/* Set compatible string */
++	snprintf(name, 64, "olimex,%s", olinuxino_get_board_name());
++	p = name;
++	for (; *p; p++)
++		*p = tolower(*p);
++
++	offset = _fdt_path_offset(fdt, "/");
++	ret = fdt_setprop_string(fdt, offset, "compatible", name);
++	if (ret) {
++		printf("%s@%d\n", __func__, __LINE__);
++		return ret;
++	}
++
++	return 0;
++}
++
++static int board_enable_spi_flash(void *fdt)
++{
++	uint32_t phandle;
++	int offset, ret = 0;
++
++	offset = _fdt_path_offset(fdt, "/soc/pinctrl@1c20800");
++	if (offset < 0)
++		return offset;
++
++	offset = fdt_add_subnode(fdt, offset, "spi0-pc-pins");
++	if (offset < 0) {
++		printf("%s@%d\n", __func__, __LINE__);
++		return offset;
++	}
++
++	/* Generate phandle */
++	phandle = fdt_create_phandle(fdt, offset);
++	if (!phandle) {
++		printf("%s@%d\n", __func__, __LINE__);
++		return -1;
++	}
++
++	ret |= fdt_setprop_string(fdt, offset, "function" , "spi0");
++	ret |= fdt_setprop_string(fdt, offset, "pins" , "PC0");
++	ret |= fdt_appendprop_string(fdt, offset, "pins", "PC1");
++	ret |= fdt_appendprop_string(fdt, offset, "pins", "PC2");
++	ret |= fdt_appendprop_string(fdt, offset, "pins", "PC23");
++	if (ret < 0) {
++		printf("%s@%d\n", __func__, __LINE__);
++		return ret;
++	}
++
++	offset = _fdt_path_offset(fdt, "/soc/spi@1c05000");
++	if (offset < 0)
++		return offset;
++
++	/* Change status to okay */
++	ret |= fdt_status_okay(fdt, offset);
++	ret |= fdt_setprop_u32(fdt, offset, "spi-max-frequency", 20000000);
++	ret |= fdt_setprop_u32(fdt, offset, "pinctrl-0", phandle);
++	ret |= fdt_setprop_string(fdt, offset, "pinctrl-names", "default");
++	if (ret < 0) {
++		printf("%s@%d\n", __func__, __LINE__);
++		return ret;
++	}
++
++	offset = fdt_add_subnode(fdt, offset, "spi-nor@0");
++	if (offset < 0) {
++		printf("%s@%d\n", __func__, __LINE__);
++		return offset;
++	}
++
++	ret |= fdt_status_okay(fdt, offset);
++	ret |= fdt_setprop_u32(fdt, offset, "spi-max-frequency", 20000000);
++	ret |= fdt_setprop_u32(fdt, offset, "reg", 0);
++	ret |= fdt_setprop_u32(fdt, offset, "#size-cells", 1);
++	ret |= fdt_setprop_u32(fdt, offset, "#address-cells", 1);
++	ret |= fdt_setprop_string(fdt, offset, "compatible", "winbond,w25q128");
++	ret |= fdt_appendprop_string(fdt, offset, "compatible", "jedec,spi-nor");
++	ret |= fdt_appendprop_string(fdt, offset, "compatible", "spi-flash");
++	if (ret < 0) {
++		printf("%s@%d\n", __func__, __LINE__);
++		return ret;
++	}
++
++	offset = _fdt_path_offset(fdt, "/aliases");
++	if (offset < 0)
++		return offset;
++
++	ret = fdt_setprop_string(fdt, offset, "spi0", "/soc/spi@1c05000");
++	if (ret < 0)
++		printf("%s@%d\n", __func__, __LINE__);
++
++	return ret;
++}
++
++static int board_enable_emac(void *fdt)
++{
++	int offset;
++	int ret;
++
++	offset = _fdt_path_offset(fdt, "/soc/ethernet@1c0b000");
++	if (offset < 0)
++		return offset;
++
++	ret = fdt_status_okay(fdt, offset);
++	if (ret < 0) {
++		printf("%s@%d\n", __func__, __LINE__);
++		return ret;
++	}
++
++	offset = _fdt_path_offset(fdt, "/aliases");
++	if (offset < 0)
++		return offset;
++
++	if (olinuxino_get_board_id() == 10257)
++		ret = fdt_setprop_string(fdt, offset,
++					 "ethernet0",
++					 "/soc/ethernet@1c0b000");
++	else
++		ret = fdt_setprop_string(fdt, offset,
++					 "ethernet1",
++					 "/soc/ethernet@1c0b000");
++	if (ret < 0) {
++		printf("%s@%d\n", __func__, __LINE__);
++		return ret;
++	}
++
++	return 0;
++}
++
++static int board_disable_sdio(void *fdt)
++{
++	int offset;
++	int ret;
++
++	offset = _fdt_path_offset(fdt, "/soc/mmc@1c12000");
++	if (offset < 0)
++		return offset;
++
++	ret = fdt_status_disabled(fdt, offset);
++	if (ret < 0) {
++		printf("%s@%d\n", __func__, __LINE__);
++		return ret;
++	}
++
++	offset = _fdt_path_offset(fdt, "/aliases");
++	if (offset < 0)
++		return offset;
++
++	ret = fdt_delprop(fdt, offset, "ethernet1");
++	if (ret < 0) {
++		printf("%s@%d\n", __func__, __LINE__);
++		return ret;
++	}
++
++	return 0;
++}
++
++int board_fix_fdt(void *fdt)
++{
++	int ret;
++
++	ret = fdt_increase_size(fdt, 4096);
++	if (ret)
++		return ret;
++
++	ret = board_set_compatible(fdt);
++	if (ret)
++		return ret;
++
++	/**
++	 * Some boards, have both eMMC and SPI flash
++	 */
++	if (olinuxino_board_has_spi()) {
++		ret = board_enable_spi_flash(fdt);
++		if (ret < 0)
++			return ret;
++	}
++
++
++	return 0;
++}
+diff --git a/board/olimex/s3_olinuxino/gmac.c b/board/olimex/s3_olinuxino/gmac.c
+new file mode 100644
+index 0000000000..a2af9f4a6e
+--- /dev/null
++++ b/board/olimex/s3_olinuxino/gmac.c
+@@ -0,0 +1,69 @@
++/*
++ * Copyright (C) 2019 Olimex Ltd.
++ *   Author: Stefan Mavrodiev <stefan@olimex.com>
++ *
++ * SPDX-License-Identifier: (GPL-2.0+ OR MIT)
++ */
++#include <common.h>
++#include <netdev.h>
++#include <miiphy.h>
++#include <asm/gpio.h>
++#include <asm/io.h>
++#include <asm/arch/clock.h>
++#include <asm/arch/gpio.h>
++
++#include <olimex/boards.h>
++
++void eth_init_board(void)
++{
++	static struct sunxi_ccm_reg *const ccm =
++		(struct sunxi_ccm_reg *)SUNXI_CCM_BASE;
++	enum olinuxino_phy_mode mode;
++	uint8_t tx_delay = 0;
++	int pin;
++
++	/**
++	 * A20-SOM204-1G-M (10257) has only megabit interface
++	 */
++	if (olinuxino_get_board_id() == 10257)
++		return;
++
++	mode = olinuxino_get_phy_mode();
++	if (mode == OLINUXINO_PHY_MODE_UNKNOWN)
++		return;
++
++	tx_delay = olinuxino_phy_txdelay();
++
++	/* Set up clock gating */
++	setbits_le32(&ccm->ahb_gate1, 0x1 << AHB_GATE_OFFSET_GMAC);
++
++	if (mode == OLINUXINO_PHY_MODE_RGMII) {
++		setbits_le32(&ccm->gmac_clk_cfg,
++			     CCM_GMAC_CTRL_TX_CLK_DELAY(tx_delay));
++		setbits_le32(&ccm->gmac_clk_cfg,
++			     CCM_GMAC_CTRL_TX_CLK_SRC_INT_RGMII |
++			     CCM_GMAC_CTRL_GPIT_RGMII);
++	} else {
++		setbits_le32(&ccm->gmac_clk_cfg,
++			     CCM_GMAC_CTRL_TX_CLK_SRC_MII |
++			     CCM_GMAC_CTRL_GPIT_MII);
++	}
++
++	/* Configure pins for GMAC */
++	for (pin = SUNXI_GPA(0); pin <= SUNXI_GPA(16); pin++) {
++
++		/* skip unused pins in RGMII mode */
++		if (mode == OLINUXINO_PHY_MODE_RGMII ) {
++			if (pin == SUNXI_GPA(9) || pin == SUNXI_GPA(14))
++				continue;
++		}
++
++		sunxi_gpio_set_cfgpin(pin, SUN7I_GPA_GMAC);
++		sunxi_gpio_set_drv(pin, 3);
++	}
++
++	/* A20-OLinuXino-MICRO needs additional signal for TXERR */
++	if (olinuxino_get_board_family() == OLINUXINO_MICRO) {
++		sunxi_gpio_set_cfgpin(SUNXI_GPA(17),  SUN7I_GPA_GMAC);
++	}
++}
+diff --git a/configs/S3-OLinuXino_defconfig b/configs/S3-OLinuXino_defconfig
+new file mode 100644
+index 0000000000..1835cd1f0c
+--- /dev/null
++++ b/configs/S3-OLinuXino_defconfig
+@@ -0,0 +1,37 @@
++CONFIG_ARM=y
++CONFIG_ARCH_SUNXI=y
++CONFIG_NR_DRAM_BANKS=1
++CONFIG_SPL=y
++CONFIG_MACH_SUN8I_S3=y
++CONFIG_DRAM_CLK=360
++CONFIG_DRAM_ZQ=14779
++CONFIG_CONS_INDEX=2
++# CONFIG_SPL_DOS_PARTITION is not set
++# CONFIG_SPL_EFI_PARTITION is not set
++CONFIG_DEFAULT_DEVICE_TREE="sun8i-s3-olinuxino"
++# CONFIG_NETDEVICES is not set
++
++CONFIG_USB0_VBUS_PIN="AXP0-VBUS-ENABLE"
++CONFIG_USB0_ID_DET="PG9"
++CONFIG_USB0_VBUS_DET="PB10"
++
++CONFIG_CMD_I2C=y
++CONFIG_SYS_USB_EVENT_POLL_VIA_INT_QUEUE=y
++CONFIG_USE_PREBOOT=y
++CONFIG_SPL_I2C_SUPPORT=y
++CONFIG_SYS_RELOC_GD_ENV_ADDR=y
++CONFIG_TARGET_S3_OLINUXINO=y
++CONFIG_SPL_BOARD_INIT=y
++CONFIG_BOARD_LATE_INIT=y
++CONFIG_OF_BOARD_FIXUP=y
++CONFIG_MULTI_DTB_FIT=y
++CONFIG_OF_LIST="sun8i-s3-olinuxino"
++CONFIG_ENV_FAT_DEVICE_AND_PART=""
++CONFIG_USB_EHCI_HCD=y
++CONFIG_USB_OHCI_HCD=y
++
++CONFIG_ENV_IS_IN_EXT4=y
++CONFIG_ENV_EXT4_INTERFACE="mmc"
++CONFIG_ENV_EXT4_DEVICE_AND_PART="0:auto"
++CONFIG_ENV_EXT4_FILE="/uboot.env"
++CONFIG_FIT_BEST_MATCH=y
+diff --git a/include/configs/s3_olinuxino.h b/include/configs/s3_olinuxino.h
+new file mode 100644
+index 0000000000..f9b78c7bdb
+--- /dev/null
++++ b/include/configs/s3_olinuxino.h
+@@ -0,0 +1,20 @@
++/*
++ * Copyright (C) 2020 Olimex Ltd.
++ *   Author: Mitko Gamishev <hehopmajieh@debian.bg>
++ *
++ * SPDX-License-Identifier: (GPL-2.0+ OR MIT)
++ */
++#ifndef __S3_OLINUXINO_H
++#include <configs/sun8i.h>
++
++#define OLINUXINO_EEPROM_BUS		I2C_1
++#define OLINUXINO_EEPROM_ADDRESS	0x50
++/**
++ * If the board has corrupted EEPROM (or it's very old without one)
++ * the booted MMC can be used as a backup storage.
++ */
++#define OLINUXINO_MMC_SECTOR		15
++
++#define LCD_OLINUXINO_EEPROM_BUS	I2C_1
++#define LCD_OLINUXINO_EEPROM_ADDRESS	0x50
++#endif /* __A20_OLINUXINO_H */
+-- 
+2.17.1
+

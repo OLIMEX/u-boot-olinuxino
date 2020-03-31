@@ -37,6 +37,12 @@ test:a13-olinuxino:
     DEFCONFIG: A13-OLinuXino_defconfig
   <<: *test_common
 
+test:s3-olinuxino:
+  variables:
+    CROSS_COMPILE: arm-linux-gnueabihf-
+    DEFCONFIG: S3-Olinuxino_defconfig
+  <<: *test_common
+
 test:a64-olinuxino:
   variables:
     CROSS_COMPILE: aarch64-linux-gnu-
