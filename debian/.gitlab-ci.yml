@@ -40,7 +40,7 @@ test:a13-olinuxino:
 test:s3-olinuxino:
   variables:
     CROSS_COMPILE: arm-linux-gnueabihf-
-    DEFCONFIG: S3-Olinuxino_defconfig
+    DEFCONFIG: sun8i-s3-general_defconfig
   <<: *test_common
 
 test:a64-olinuxino:
