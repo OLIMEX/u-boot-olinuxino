@@ -1,4 +1,4 @@
-From 53f037f30d7dc42bc7108202a919437f1a856e9e Mon Sep 17 00:00:00 2001
+From 0c4c9f00d4b630141179e1c14d75f536e32252d6 Mon Sep 17 00:00:00 2001
 From: hehopmajieh <hehopmajieh@debian.bg>
 Date: Tue, 31 Mar 2020 12:44:16 +0300
 Subject: [PATCH 2/2] Default configuration for S3-OLinuXino
@@ -18,7 +18,8 @@ Subject: [PATCH 2/2] Default configuration for S3-OLinuXino
  board/olimex/s3_olinuxino/gmac.c       |  69 ++++++++
  configs/S3-OLinuXino_defconfig         |  37 +++++
  include/configs/s3_olinuxino.h         |  20 +++
- 14 files changed, 648 insertions(+), 4 deletions(-)
+ include/configs/sunxi-common.h         |  10 +-
+ 15 files changed, 655 insertions(+), 7 deletions(-)
  create mode 100644 board/olimex/s3_olinuxino/Kconfig
  create mode 100644 board/olimex/s3_olinuxino/MAINTAINERS
  create mode 100644 board/olimex/s3_olinuxino/Makefile
@@ -857,6 +858,41 @@ index 0000000000..f9b78c7bdb
 +#define LCD_OLINUXINO_EEPROM_BUS	I2C_1
 +#define LCD_OLINUXINO_EEPROM_ADDRESS	0x50
 +#endif /* __A20_OLINUXINO_H */
+diff --git a/include/configs/sunxi-common.h b/include/configs/sunxi-common.h
+index 1f3683a385..638ccd050a 100644
+--- a/include/configs/sunxi-common.h
++++ b/include/configs/sunxi-common.h
+@@ -144,7 +144,7 @@
+ #define CONFIG_SYS_MMC_MAX_DEVICE	4
+ #endif
+ 
+-#ifndef CONFIG_MACH_SUN8I_V3S
++#if !defined(CONFIG_MACH_SUN8I_V3S) && !defined(CONFIG_MACH_SUN8I_S3) 
+ /* 64MB of malloc() pool */
+ #define CONFIG_SYS_MALLOC_LEN		(CONFIG_ENV_SIZE + (64 << 20))
+ #else
+@@ -260,7 +260,11 @@ extern int soft_i2c_gpio_scl;
+  * The amount of RAM to keep free at the top of RAM when relocating u-boot,
+  * to use as framebuffer. This must be a multiple of 4096.
+  */
+-#define CONFIG_SUNXI_MAX_FB_SIZE (16 << 20)
++#if !defined(CONFIG_MACH_SUN8I_V3S) && !defined(CONFIG_MACH_SUN8I_S3)
++ #define CONFIG_SUNXI_MAX_FB_SIZE (16 << 20)
++#else
++ #define CONFIG_SUNXI_MAX_FB_SIZE (2 << 20)
++#endif
+ 
+ #define CONFIG_VIDEO_LOGO
+ #define CONFIG_VIDEO_STD_TIMINGS
+@@ -308,7 +312,7 @@ extern int soft_i2c_gpio_scl;
+  * 32M uncompressed kernel, 16M compressed kernel, 1M fdt,
+  * 1M script, 1M pxe and the ramdisk at the end.
+  */
+-#ifndef CONFIG_MACH_SUN8I_V3S
++#if !defined(CONFIG_MACH_SUN8I_V3S) && !defined(CONFIG_MACH_SUN8I_S3)
+ #define BOOTM_SIZE     __stringify(0xa000000)
+ #define KERNEL_ADDR_R  __stringify(SDRAM_OFFSET(2000000))
+ #define FDT_ADDR_R     __stringify(SDRAM_OFFSET(3000000))
 -- 
 2.17.1
 
