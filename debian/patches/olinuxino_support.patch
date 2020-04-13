@@ -1283,7 +1283,7 @@ index 0000000000..2b0fcbab41
 +	},
 +	{
 +		OLINUXINO_BOARD_MICRO(9789, "T2-OLinuXino-MICRO-e8Gs16M-IND", "sun7i-a20-olinuxino-micro-emmc")
-+		OLINUXINO_CONFIG(EMMC, GBYTES(4), GBYTES(1), IND)
++		OLINUXINO_CONFIG(EMMC, GBYTES(8), GBYTES(1), IND)
 +	},
 +
 +	/* A20-SOM */
