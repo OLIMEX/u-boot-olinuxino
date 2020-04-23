@@ -5,3 +5,4 @@ armhf	a10-olinuxino	A10-OLinuXino	u-boot-sunxi-with-spl.bin
 armhf	a13-olinuxino	A13-OLinuXino	u-boot-sunxi-with-spl.bin
 armhf	s3-olinuxino	S3-OLinuXino	u-boot-sunxi-with-spl.bin
 arm64	a64-olinuxino	A64-OLinuXino	u-boot.bin spl/sunxi-spl.bin u-boot-nodtb.bin arch/arm/dts/sun50i-a64-olinuxino.dtb arch/arm/dts/sun50i-a64-olinuxino-emmc.dtb
+arm64	teres-i		teres_i		u-boot.bin spl/sunxi-spl.bin u-boot-nodtb.bin arch/arm/dts/sun50i-a64-teres-i.dtb

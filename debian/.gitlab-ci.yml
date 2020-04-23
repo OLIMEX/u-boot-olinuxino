@@ -49,6 +49,12 @@ test:a64-olinuxino:
     DEFCONFIG: A64-OLinuXino_defconfig
   <<: *test_common
 
+test:teres-i:
+  variables:
+    CROSS_COMPILE: aarch64-linux-gnu-
+    DEFCONFIG: teres_i_defconfig
+  <<: *test_common
+
 package:source:
   artifacts:
     name: "$CI_PROJECT_NAME-source.$CI_COMMIT_SHORT_SHA"
