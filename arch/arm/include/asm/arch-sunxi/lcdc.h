@@ -88,6 +88,7 @@ struct sunxi_lcdc_reg {
 #else
 #define SUNXI_LCDC_TCON0_LVDS_CLK_SEL_TCON0	0 /* NA */
 #endif
+#define SUNXI_LCDC_TCON0_LVDS_INTF_CH(n)	((n) << 30)
 #define SUNXI_LCDC_TCON0_LVDS_INTF_BITWIDTH(n)	((n) << 26)
 #define SUNXI_LCDC_TCON0_LVDS_INTF_ENABLE	(1 << 31)
 #define SUNXI_LCDC_TCON0_IO_POL_DCLK_PHASE(x)	((x) << 28)

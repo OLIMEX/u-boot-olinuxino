@@ -31,6 +31,11 @@
 # endif
 #endif
 
+__weak const char *env_fat_get_dev_part(void)
+{
+	return (const char *)CONFIG_ENV_FAT_DEVICE_AND_PART;
+}
+
 #ifdef CMD_SAVEENV
 static int env_fat_save(void)
 {
@@ -40,13 +45,14 @@ static int env_fat_save(void)
 	int dev, part;
 	int err;
 	loff_t size;
+	const char *dev_and_part = env_fat_get_dev_part();
 
 	err = env_export(&env_new);
 	if (err)
 		return err;
 
 	part = blk_get_device_part_str(CONFIG_ENV_FAT_INTERFACE,
-					CONFIG_ENV_FAT_DEVICE_AND_PART,
+					dev_and_part,
 					&dev_desc, &info, 1);
 	if (part < 0)
 		return 1;
@@ -86,6 +92,7 @@ static int env_fat_load(void)
 	disk_partition_t info;
 	int dev, part;
 	int err;
+	const char *dev_and_part = env_fat_get_dev_part();
 
 #ifdef CONFIG_MMC
 	if (!strcmp(CONFIG_ENV_FAT_INTERFACE, "mmc"))
@@ -93,7 +100,7 @@ static int env_fat_load(void)
 #endif
 
 	part = blk_get_device_part_str(CONFIG_ENV_FAT_INTERFACE,
-					CONFIG_ENV_FAT_DEVICE_AND_PART,
+					dev_and_part,
 					&dev_desc, &info, 1);
 	if (part < 0)
 		goto err_env_relocate;
