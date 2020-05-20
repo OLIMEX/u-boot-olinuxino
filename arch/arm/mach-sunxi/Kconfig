@@ -322,6 +322,82 @@ config MACH_SUN8I
 	default y if MACH_SUN8I_R40
 	default y if MACH_SUN8I_V3S
 
+if MACH_SUN7I
+choice
+	prompt "SUNXI profile select"
+
+config TARGET_SUN7I_DEFAULT
+	bool "Default sunxi target"
+	---help---
+	Use the default profile for sunxi boards
+
+config TARGET_A20_OLINUXINO
+	bool "A20-OLinuXino board"
+	select I2C1_ENABLE
+	select SPL_SPI_SUNXI
+	---help---
+	Use board autodetection feature on A20-OLinuXino boards
+
+endchoice
+endif
+
+if MACH_SUN4I
+choice
+        prompt "SUNXI profile select"
+
+config TARGET_SUN4I_DEFAULT
+        bool "Default sunxi target"
+        ---help---
+        Use the default profile for sunxi boards
+
+config TARGET_A10_OLINUXINO
+        bool "A10-OLinuXino board"
+        select I2C1_ENABLE
+        select SPL_SPI_SUNXI
+        ---help---
+        Use board autodetection feature on A10-OLinuXino boards
+
+endchoice
+endif
+
+
+if MACH_SUN5I
+choice
+        prompt "SUNXI profile select"
+
+config TARGET_SUN5I_DEFAULT
+        bool "Default sunxi target"
+        ---help---
+        Use the default profile for sunxi boards
+
+config TARGET_A13_OLINUXINO
+        bool "A13-OLinuXino board"
+        select I2C1_ENABLE
+        ---help---
+        Use board autodetection feature on A13-OLinuXino boards
+
+endchoice
+endif
+
+if MACH_SUN50I
+choice
+	prompt "SUNXI profile select"
+
+config TARGET_SUN50I_DEFAULT
+	bool "Default sunxi target"
+	---help---
+	Use the default profile for sunxi boards
+
+config TARGET_A64_OLINUXINO
+	bool "A64-OLinuXino board"
+	select I2C0_ENABLE
+	select SPL_SPI_SUNXI
+	---help---
+	Use A64-OLinuXino board
+
+endchoice
+endif
+
 config RESERVE_ALLWINNER_BOOT0_HEADER
 	bool "reserve space for Allwinner boot0 header"
 	select ENABLE_ARM_SOC_BOOT0_HOOK
@@ -542,6 +618,7 @@ config SYS_CLK_FREQ
 	default 1008000000 if MACH_SUN9I
 	default 888000000 if MACH_SUN50I_H6
 
+if !TARGET_A20_OLINUXINO && !TARGET_A64_OLINUXINO && !TARGET_A13_OLINUXINO  && !TARGET_A10_OLINUXINO
 config SYS_CONFIG_NAME
 	default "sun4i" if MACH_SUN4I
 	default "sun5i" if MACH_SUN5I
@@ -554,9 +631,26 @@ config SYS_CONFIG_NAME
 
 config SYS_BOARD
 	default "sunxi"
+endif
 
 config SYS_SOC
 	default "sunxi"
+
+if TARGET_A20_OLINUXINO
+	source "board/olimex/a20_olinuxino/Kconfig"
+endif
+
+if TARGET_A13_OLINUXINO
+        source "board/olimex/a13_olinuxino/Kconfig"
+endif
+
+if TARGET_A10_OLINUXINO
+        source "board/olimex/a10_olinuxino/Kconfig"
+endif
+
+if TARGET_A64_OLINUXINO
+	source "board/olimex/a64_olinuxino/Kconfig"
+endif
 
 config UART0_PORT_F
 	bool "UART0 on MicroSD breakout board"
@@ -904,6 +998,10 @@ config VIDEO_LCD_IF_PARALLEL
 config VIDEO_LCD_IF_LVDS
 	bool
 
+config VIDEO_LCD_OLINUXINO
+	bool
+	default y if SUNXI_DE2 && TARGET_A64_OLINUXINO
+
 config SUNXI_DE2
 	bool
 	default n
@@ -933,6 +1031,11 @@ config VIDEO_LCD_PANEL_PARALLEL
 config VIDEO_LCD_PANEL_LVDS
 	bool "Generic lvds interface LCD panel"
 	select VIDEO_LCD_IF_LVDS
+
+config VIDEO_LCD_PANEL_OLINUXINO
+	bool "LCD-OLinuXino LCD panel support"
+	select I2C2_ENABLE if TARGET_A20_OLINUXINO
+	select VIDEO_LCD_OLINUXINO
 
 config VIDEO_LCD_PANEL_MIPI_4_LANE_513_MBPS_VIA_SSD2828
 	bool "MIPI 4-lane, 513Mbps LCD panel via SSD2828 bridge chip"

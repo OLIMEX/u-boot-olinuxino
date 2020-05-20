@@ -471,6 +471,7 @@ dtb-$(CONFIG_MACH_SUN4I) += \
 	sun4i-a10-mk802.dtb \
 	sun4i-a10-mk802ii.dtb \
 	sun4i-a10-olinuxino-lime.dtb \
+	sun4i-a10-olinuxino-lime-emmc.dtb \
 	sun4i-a10-pcduino.dtb \
 	sun4i-a10-pcduino2.dtb \
 	sun4i-a10-pov-protab2-ips9.dtb
@@ -490,6 +491,8 @@ dtb-$(CONFIG_MACH_SUN5I) += \
 	sun5i-a13-inet-98v-rev2.dtb \
 	sun5i-a13-olinuxino.dtb \
 	sun5i-a13-olinuxino-micro.dtb \
+	sun5i-a13-som-256.dtb \
+	sun5i-a13-som-512.dtb \
 	sun5i-a13-q8-tablet.dtb \
 	sun5i-a13-utoo-p66.dtb \
 	sun5i-gr8-chip-pro.dtb \
@@ -525,9 +528,11 @@ dtb-$(CONFIG_MACH_SUN7I) += \
 	sun7i-a20-m5.dtb \
 	sun7i-a20-mk808c.dtb \
 	sun7i-a20-olimex-som-evb.dtb \
+	sun7i-a20-olimex-som-evb-emmc.dtb \
 	sun7i-a20-olimex-som204-evb.dtb \
 	sun7i-a20-olimex-som204-evb-emmc.dtb \
 	sun7i-a20-olinuxino-lime.dtb \
+	sun7i-a20-olinuxino-lime-emmc.dtb \
 	sun7i-a20-olinuxino-lime2.dtb \
 	sun7i-a20-olinuxino-lime2-emmc.dtb \
 	sun7i-a20-olinuxino-micro.dtb \
