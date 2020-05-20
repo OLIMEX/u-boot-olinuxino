@@ -1,0 +1,31 @@
+.\" Copyright © 2008 Per Andersson <avtobiff@gmail.com>
+.\" This man page is covered by the GNU General Public License (GPLv2 or higher).
+.TH fw_printenv 8 "August 2008" "Debian Project" ""
+
+.SH NAME
+fw_printenv \- Tool for printing environment for the bootloader U-Boot
+
+.SH SYNOPSIS
+fw_printenv [ \fB\-n\fP \fIname\fP ] [ \fIname\fP \fI...\fP ]
+
+.SH DESCRIPTION
+\fIfw_printenv\fP is a simple tool for printing the environment for the
+bootloader U-Boot. All environment variables matching the names given as
+arguments are shown. If \fIfw_printenv\fP is called without any arguments the
+entire environment is printed.
+
+.SH OPTIONS
+.IP \fB\-n\fP
+If the \fBn\fP flag is set \fIfw_printenv\fP only prints the value of the supplied variable \fIname\fP.
+
+.SH FILES
+.IP \fB/etc/fw_env.config\fP
+Configuration file for fw_printenv.
+
+.SH SEE ALSO
+fw_setenv(8)
+
+.SH AUTHOR
+Wolfgang Denk <wd@denx.de>
+.PP
+This manual page was written by Per Andersson <avtobiff@gmail.com>
