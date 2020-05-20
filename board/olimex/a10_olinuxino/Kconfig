@@ -1,0 +1,10 @@
+if TARGET_A10_OLINUXINO
+config SYS_BOARD
+	default "a10_olinuxino"
+
+config SYS_VENDOR
+	default "olimex"
+
+config SYS_CONFIG_NAME
+	default "a10_olinuxino"
+endif

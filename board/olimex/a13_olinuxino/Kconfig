@@ -1,0 +1,10 @@
+if TARGET_A13_OLINUXINO
+config SYS_BOARD
+	default "a13_olinuxino"
+
+config SYS_VENDOR
+	default "olimex"
+
+config SYS_CONFIG_NAME
+	default "a13_olinuxino"
+endif
