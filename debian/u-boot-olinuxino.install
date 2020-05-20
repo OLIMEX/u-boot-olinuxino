@@ -1,0 +1,7 @@
+#!/bin/sh
+
+echo debian/bin/u-boot-install /usr/bin/
+
+echo debian/manpages/u-boot-install-sunxi64.8 /usr/share/man/man8/
+
+cat "debian/build/targets"
