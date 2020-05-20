@@ -1,0 +1,34 @@
+.TH u-boot-install-sunxi64 8 2018-03-17 u-boot
+.SH NAME
+u-boot-install-sunxi64 \- install u-boot+ATF for sunxi64 (Allwinner) devices
+.SH SYNOPSIS
+.B u-boot-install-sunxi64
+.RI [ -f ]
+.I card-device-or-image-file
+.SH DESCRIPTION
+This tool prepares a combined u-boot+ATF setup and writes it to the disk (or
+possibly a disk image), allowing the machine to boot.  The u-bootage is
+written to an area between the partition table and the first partition;
+there is no check if it's large enough \(em some ancient fdisk tools used to
+reserve only 31KB there, which can result in data loss.
+.PP
+The device will usually be
+.I /dev/mmcblk0
+for SD card,
+.I /dev/mmcblk1
+for eMMC,
+.I /dev/sdX
+for USB SD card readers (be careful wrt your other disks!).
+.SH OPTIONS
+.TP
+-f | --force
+Skip partition table sanity checks.  Usually, a MBR partition table is
+required (so u-boot has something to work with), but in rare setups you
+may put the data on another disk.  Likewise, GPT partition tables are
+incompatible with the layout used on sunxi64 devices (spl is written at
+offset 16384 while GPT occupies bytes [512..33280) ) but this option lets
+you trample upon them anyway.
+.SH CAVEATS
+It has been so far tested only on Pine64+.  If appropriate DTBs are provided,
+it \fImay\fR work on Pinebook, SoPine, other A64 devices, or possibly even H5.
+Reports are welcome!

@@ -1,0 +1,27 @@
+.\" Copyright © 2008 Per Andersson <avtobiff@gmail.com>
+.\" This man page is covered by the GNU General Public License (GPLv2 or higher).
+.TH fw_setenv 8 "August 2008" "Debian Project" ""
+
+.SH NAME
+fw_setenv \- Tool for modifying the environment for the bootloader U\-Boot
+
+.SH SYNOPSIS
+fw_setenv \fIname\fP [ \fIvalue\fP ]
+
+.SH DESCRIPTION
+\fIfw_setenv\fP is a simple tool for modifying either the environment for the
+bootloader U-Boot. If the variable already is set in the environment it is
+updated, otherwise it is created and set. If only one argument is given,
+variable name, the corresponding variable is deleted.
+
+.SH FILES
+.IP \fB/etc/fw_env.config\fP
+Configuration file for fw_setenv.
+
+.SH SEE ALSO
+fw_printenv(8)
+
+.SH AUTHOR
+Wolfgang Denk <wd@denx.de>
+.PP
+This manual page was written by Per Andersson <avtobiff@gmail.com>
