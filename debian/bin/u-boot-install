@@ -1,0 +1,118 @@
+#!/bin/bash
+set -e
+
+function get_root_device
+{
+	local UUID=""
+
+	for arg in $(cat /proc/cmdline); do
+		case $arg in
+		"root="*)
+			UUID=${arg#root=}
+			break
+			;;
+
+		*)
+			;;
+
+		esac
+	done
+	[[ -z ${UUID} ]] && return ""
+
+	local PARTITION=$(blkid | grep "${UUID#PARTUUID=}" | cut -d':' -f1)
+	[[ -z ${PARTITION} ]] && return ""
+
+	# The following doesn't work on debian sid.
+	DEVICE=$(lsblk -n -o PKNAME "${PARTITION}" | head -n1)
+
+	# Try regex expression
+	if [[ -z ${DEVICE} ]]; then
+		[[ ${PARTITION} =~ "/dev/mmcblk"[0-9]+ ]] || \
+		[[ ${PARTITION} =~ "/dev/sd"[a-z] ]] && \
+		DEVICE=${BASH_REMATCH[0]}
+	else
+		DEVICE="/dev/${DEVICE}"
+	fi
+
+	echo ${DEVICE}
+}
+
+function install_sunxi
+{
+	DEV=$1
+	TARGET="/usr/lib/u-boot-olinuxino/${TARGET}/u-boot-sunxi-with-spl.bin"
+
+	if [[ ! -e ${TARGET} ]]; then
+		echo >&2 "$0: the file \'${TARGET}\' is missing"
+		exit 1
+	fi
+
+	# Try to detect the root device
+	if [[ -z ${DEV} ]]; then
+		DEV=$(get_root_device)
+		if [[ -z ${DEV} ]]; then
+			echo >&2 "$0: failed to detect the root device"
+			exit 1
+		fi
+	fi
+
+	if [[ ! -w ${DEV} ]]; then
+		echo >&2 "$0: device/image ($DEV) must be writable"
+		exit 1
+	fi
+
+	DEV=$(readlink -f ${DEV})
+
+	echo "Writing u-boot-sunxi-with-spl"
+	if [[ -c ${DEV} ]] && [[ ${DEV} == "/dev/mtd"* ]]; then
+		flashcp ${TARGET} ${DEV}
+	else
+		dd if=${TARGET} of=${DEV} bs=1k seek=8 conv=notrunc
+	fi
+
+}
+
+# Detect family
+for comp in $(cat "/proc/device-tree/compatible" | tr '\0' '\n'); do
+	if [[ "${comp}" == "allwinner,sun"* ]]; then
+		soc=$(cut -d',' -f2 <<< ${comp})
+	elif [[ "${comp}" == "olimex,"* ]]; then
+		board="${comp}"
+	fi
+done
+
+if [[ -z "${TARGET}" ]]; then
+	case ${soc} in
+		"sun4i-a10")
+                        TARGET="a10-olinuxino"
+                        INSTALL_FUNC=install_sunxi
+                        ;;
+
+		"sun5i-a13")
+			TARGET="a13-olinuxino"
+			INSTALL_FUNC=install_sunxi
+			;;
+
+		"sun7i-a20")
+			TARGET="a20-olinuxino"
+			INSTALL_FUNC=install_sunxi
+			;;
+
+		"sun8i-s3")
+                        TARGET="s3-olinuxino"
+                        INSTALL_FUNC=install_sunxi
+                        ;;
+
+		"sun50i-a64")
+			TARGET="a64-olinuxino"
+			INSTALL_FUNC=install_sunxi
+			;;
+
+		*)
+			echo >&2 "$0: Unsupported sunxi family: ${soc}."
+			exit 1;
+			;;
+	esac
+fi
+
+${INSTALL_FUNC} $@

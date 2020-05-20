@@ -1,0 +1,5 @@
+u-boot-olinuxino (2021.04+olimex-1-BUILD_DATE) unstable; urgency=medium
+
+  * Initial packaging
+
+ -- Olimex Dev team <support@olimex.com>  Thu, 30 Jan 2020 13:10:18 +0200
