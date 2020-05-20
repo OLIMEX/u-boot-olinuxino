@@ -1,0 +1,5 @@
+M:      Dimitar Gamishev <hehopmajieh@debian.bg>
+S:      Maintained
+F:      board/olimex/a10-olinuxino
+F:	include/configs/a10_olinuxino.h
+F:      configs/A10-OLinuXino_defconfig
