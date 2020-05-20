@@ -19,6 +19,8 @@
 #include <asm/global_data.h>
 #include <asm/gpio.h>
 
+#include <olimex/lcd_olinuxino.h>
+
 struct sunxi_lcd_priv {
 	struct display_timing timing;
 	int panel_bpp;
@@ -79,10 +81,12 @@ static int sunxi_lcd_read_timing(struct udevice *dev,
 
 static int sunxi_lcd_probe(struct udevice *dev)
 {
-	struct udevice *cdev;
 	struct sunxi_lcd_priv *priv = dev_get_priv(dev);
+#ifndef CONFIG_VIDEO_LCD_OLINUXINO
+	struct udevice *cdev;
 	int ret;
 	int node, timing_node, val;
+#endif /* !CONFIG_VIDEO_LCD_OLINUXINO */
 
 #ifdef CONFIG_VIDEO_BRIDGE
 	/* Try to get timings from bridge first */
@@ -107,6 +111,16 @@ static int sunxi_lcd_probe(struct udevice *dev)
 	}
 #endif
 
+#ifdef CONFIG_VIDEO_LCD_OLINUXINO
+	if (olinuxino_phy_rst_pin())
+		return -ENODEV;
+
+	if (lcd_olinuxino_display_timing(&priv->timing)) {
+		debug("%s: Failed to get display timing\n", __func__);
+		return -ENODEV;
+	}
+	priv->panel_bpp = 18;
+#else
 	/* Fallback to timings from DT if there's no bridge or
 	 * if reading EDID failed
 	 */
@@ -129,6 +143,7 @@ static int sunxi_lcd_probe(struct udevice *dev)
 		priv->panel_bpp = val;
 	else
 		priv->panel_bpp = 18;
+#endif /* CONFIG_VIDEO_LCD_OLINUXINO */
 
 	return 0;
 }

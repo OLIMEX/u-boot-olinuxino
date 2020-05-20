@@ -35,6 +35,12 @@
 #include "../ssd2828.h"
 #include "simplefb_common.h"
 
+#ifdef CONFIG_VIDEO_LCD_OLINUXINO
+#include <olimex/boards.h>
+#include <olimex/lcd_olinuxino.h>
+#include <olimex/sys_eeprom.h>
+#endif
+
 #ifdef CONFIG_VIDEO_LCD_BL_PWM_ACTIVE_LOW
 #define PWM_ON 0
 #define PWM_OFF 1
@@ -538,6 +544,14 @@ static void sunxi_lcdc_init(void)
 
 	/* Clock on */
 	setbits_le32(&ccm->ahb_gate1, 1 << AHB_GATE_OFFSET_LCD0);
+#ifdef CONFIG_VIDEO_LCD_OLINUXINO
+	if (lcd_olinuxino_interface() == LCD_OLINUXINO_IF_LVDS)
+#ifdef CONFIG_SUNXI_GEN_SUN6I
+		setbits_le32(&ccm->ahb_reset2_cfg, 1 << AHB_RESET_OFFSET_LVDS);
+#else
+		setbits_le32(&ccm->lvds_clk_cfg, CCM_LVDS_CTRL_RST);
+#endif
+#else
 #ifdef CONFIG_VIDEO_LCD_IF_LVDS
 #ifdef CONFIG_SUNXI_GEN_SUN6I
 	setbits_le32(&ccm->ahb_reset2_cfg, 1 << AHB_RESET_OFFSET_LVDS);
@@ -545,6 +559,7 @@ static void sunxi_lcdc_init(void)
 	setbits_le32(&ccm->lvds_clk_cfg, CCM_LVDS_CTRL_RST);
 #endif
 #endif
+#endif /* CONFIG_VIDEO_LCD_OLINUXINO */
 
 	lcdc_init(lcdc);
 }
@@ -563,6 +578,18 @@ static void sunxi_lcdc_panel_enable(void)
 		gpio_direction_output(pin, 0);
 	}
 
+#ifdef CONFIG_VIDEO_LCD_OLINUXINO
+	pin = sunxi_name_to_gpio(olinuxino_get_lcd_pwm_pin());
+	if (pin >= 0) {
+		gpio_request(pin, "lcd_backlight_pwm");
+		if (lcd_olinuxino_interface() == LCD_OLINUXINO_IF_LVDS)
+			gpio_direction_output(pin, 0);
+		else
+			gpio_direction_output(pin, 1);
+	}
+
+	reset_pin = -1;
+#else
 	pin = sunxi_name_to_gpio(CONFIG_VIDEO_LCD_BL_PWM);
 	if (pin >= 0) {
 		gpio_request(pin, "lcd_backlight_pwm");
@@ -574,10 +601,15 @@ static void sunxi_lcdc_panel_enable(void)
 		gpio_request(reset_pin, "lcd_reset");
 		gpio_direction_output(reset_pin, 0); /* Assert reset */
 	}
+#endif /* CONFIG_VIDEO_LCD_OLINUXINO */
 
 	/* Give the backlight some time to turn off and power up the panel. */
 	mdelay(40);
+#ifdef CONFIG_VIDEO_LCD_OLINUXINO
+	pin = sunxi_name_to_gpio(olinuxino_get_lcd_pwr_pin());
+#else
 	pin = sunxi_name_to_gpio(CONFIG_VIDEO_LCD_POWER);
+#endif /* CONFIG_VIDEO_LCD_OLINUXINO */
 	if (pin >= 0) {
 		gpio_request(pin, "lcd_power");
 		gpio_direction_output(pin, 1);
@@ -597,6 +629,15 @@ static void sunxi_lcdc_backlight_enable(void)
 	 */
 	mdelay(40);
 
+#ifdef CONFIG_VIDEO_LCD_OLINUXINO
+	pin = sunxi_name_to_gpio(olinuxino_get_lcd_pwm_pin());
+	if (pin >= 0) {
+		if (lcd_olinuxino_interface() == LCD_OLINUXINO_IF_LVDS)
+			gpio_direction_output(pin, 1);
+		else
+			gpio_direction_output(pin, 0);
+	}
+#else
 	pin = sunxi_name_to_gpio(CONFIG_VIDEO_LCD_BL_EN);
 	if (pin >= 0)
 		gpio_direction_output(pin, 1);
@@ -614,6 +655,7 @@ static void sunxi_lcdc_backlight_enable(void)
 #endif
 	if (pin >= 0)
 		gpio_direction_output(pin, PWM_ON);
+#endif /* CONFIG_VIDEO_LCD_OLINUXINO */
 }
 
 static void sunxi_lcdc_tcon0_mode_set(const struct ctfb_res_modes *mode,
@@ -626,6 +668,16 @@ static void sunxi_lcdc_tcon0_mode_set(const struct ctfb_res_modes *mode,
 	int clk_div, clk_double, pin;
 	struct display_timing timing;
 
+
+#ifdef CONFIG_VIDEO_LCD_OLINUXINO
+	if (lcd_olinuxino_interface() == LCD_OLINUXINO_IF_PARALLEL) {
+		for (pin = SUNXI_GPD(0); pin <= SUNXI_GPD(27); pin++)
+			sunxi_gpio_set_cfgpin(pin, SUNXI_GPD_LCD0);
+	} else {
+		for (pin = SUNXI_GPD(0); pin <= SUNXI_GPD(19); pin++)
+			sunxi_gpio_set_cfgpin(pin, SUNXI_GPD_LVDS0);
+	}
+#else
 #if defined CONFIG_MACH_SUN8I && defined CONFIG_VIDEO_LCD_IF_LVDS
 	for (pin = SUNXI_GPD(18); pin <= SUNXI_GPD(27); pin++) {
 #else
@@ -641,7 +693,7 @@ static void sunxi_lcdc_tcon0_mode_set(const struct ctfb_res_modes *mode,
 		sunxi_gpio_set_drv(pin, 3);
 #endif
 	}
-
+#endif /* CONFIG_VIDEO_LCD_OLINUXINO */
 	lcdc_pll_set(ccm, 0, mode->pixclock_khz, &clk_div, &clk_double,
 		     sunxi_is_composite());
 
@@ -1015,9 +1067,13 @@ static bool sunxi_has_hdmi(void)
 
 static bool sunxi_has_lcd(void)
 {
+#ifdef CONFIG_VIDEO_LCD_OLINUXINO
+	return lcd_olinuxino_is_present();
+#else
 	char *lcd_mode = CONFIG_VIDEO_LCD_MODE;
 
 	return lcd_mode[0] != 0;
+#endif /* CONFIG_VIDEO_LCD_OLINUXINO */
 }
 
 static bool sunxi_has_vga(void)
@@ -1065,7 +1121,11 @@ void *video_hw_init(void)
 	int i, overscan_offset, overscan_x, overscan_y;
 	unsigned int fb_dma_addr;
 	char mon[16];
+#ifdef CONFIG_VIDEO_LCD_OLINUXINO
+	char *lcd_mode = lcd_olinuxino_video_mode();
+#else
 	char *lcd_mode = CONFIG_VIDEO_LCD_MODE;
+#endif /* CONFIG_VIDEO_LCD_OLINUXINO */
 
 	memset(&sunxi_display, 0, sizeof(struct sunxi_display));
 
@@ -1099,6 +1159,7 @@ void *video_hw_init(void)
 		hdmi_present = (sunxi_hdmi_hpd_detect(hpd_delay) == 1);
 		if (hdmi_present && edid) {
 			printf("HDMI connected: ");
+			env_set("monitor", "hdmi");
 			if (sunxi_hdmi_edid_get_mode(&custom, true) == 0)
 				mode = &custom;
 			else
@@ -1115,6 +1176,7 @@ void *video_hw_init(void)
 		if ((hpd || edid) && !hdmi_present) {
 			sunxi_hdmi_shutdown();
 			sunxi_display.monitor = sunxi_get_default_mon(false);
+			env_set("monitor", "none");
 		} /* else continue with hdmi/dvi without a cable connected */
 	}
 #endif
@@ -1138,6 +1200,7 @@ void *video_hw_init(void)
 		}
 		sunxi_display.depth = video_get_params(&custom, lcd_mode);
 		mode = &custom;
+		env_set("monitor", "lcd");
 		break;
 	case sunxi_monitor_vga:
 		if (!sunxi_has_vga()) {

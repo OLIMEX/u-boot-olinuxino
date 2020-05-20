@@ -22,5 +22,6 @@
 #define is_boot0_magic(addr)	(memcmp((void *)(addr), BOOT0_MAGIC, 8) == 0)
 
 uint32_t sunxi_get_boot_device(void);
+uint32_t sunxi_spi_is_present(void);
 
 #endif
