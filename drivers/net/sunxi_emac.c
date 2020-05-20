@@ -19,6 +19,10 @@
 #include <asm/arch/clock.h>
 #include <asm/arch/gpio.h>
 
+#ifdef CONFIG_TARGET_A20_OLINUXINO
+#include <olimex/boards.h>
+#endif
+
 /* EMAC register  */
 struct emac_regs {
 	u32 ctl;	/* 0x00 */
@@ -516,6 +520,15 @@ static int sunxi_emac_board_setup(struct udevice *dev,
 	/* Map SRAM to EMAC */
 	setbits_le32(&sram->ctrl1, 0x5 << 2);
 
+#ifdef CONFIG_TARGET_A20_OLINUXINO
+	if (olinuxino_board_has_emac()) {
+		for (pin = SUNXI_GPH(8); pin <= SUNXI_GPH(27); pin++) {
+			if (pin == SUNXI_GPH(12) || pin == SUNXI_GPH(13))
+				continue;
+			sunxi_gpio_set_cfgpin(pin, SUN7I_GPH_EMAC);
+		}
+	} else
+#endif /* CONFIG_TARGET_A20_OLINUXINO */
 	/* Configure pin mux settings for MII Ethernet */
 	for (pin = SUNXI_GPA(0); pin <= SUNXI_GPA(17); pin++)
 		sunxi_gpio_set_cfgpin(pin, SUNXI_GPA_EMAC);

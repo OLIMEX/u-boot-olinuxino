@@ -1,0 +1,6 @@
+A20-OLinuXino
+M:      Stefan Mavrodiev <stefan@olimex.com>
+S:      Maintained
+F:      board/olimex/a64_olinuxino
+F:	include/configs/a64_olinuxino.h
+F:      configs/A64-OLinuXino_defconfig
