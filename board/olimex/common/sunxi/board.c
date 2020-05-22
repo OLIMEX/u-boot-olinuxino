@@ -1000,6 +1000,11 @@ int ft_board_setup(void *blob, bd_t *bd)
 #ifdef CONFIG_SPL_LOAD_FIT
 int board_fit_config_name_match(const char *name)
 {
+#ifdef CONFIG_TARGET_A64_OLINUXINO
+	const char *dtb = olinuxino_get_board_fdt();
+
+	return (!strncmp(name, dtb, strlen(dtb))) ? 0 : -1;
+#else
 	struct boot_file_head *spl = get_spl_header(SPL_DT_HEADER_VERSION);
 	const char *cmp_str = (const char *)spl;
 
@@ -1026,5 +1031,6 @@ int board_fit_config_name_match(const char *name)
 	}
 #endif
 	return strcmp(name, cmp_str);
+#endif
 }
 #endif
