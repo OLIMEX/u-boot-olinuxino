@@ -888,7 +888,7 @@ static int olinuxino_load_overlay(void *blob, char *overlay)
 	printf("Applying overlay: \'%s\'...\n", overlay);
 
 	/* Load file */
-	sprintf(cmd, "load mmc ${mmc_bootdev} 0x4fc00000 %s", overlay);
+	sprintf(cmd, "load ${devtype} ${devnum} 0x4fc00000 %s", overlay);
 	ret = run_command(cmd, 0);
 	if (ret)
 		printf("Failed to load overlay.\n");
