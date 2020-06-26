@@ -130,7 +130,7 @@ struct olinuxino_boards olinuxino_boards[] = {
 		OLINUXINO_CONFIG(NONE, -1, GBYTES(1), IND)
 	},
 	{
-		OLINUXINO_BOARD_MICRO(8832, "A20-OLinuXino-MICRO-e4GB", "sun7i-a20-olinuxino-emmc")
+		OLINUXINO_BOARD_MICRO(8832, "A20-OLinuXino-MICRO-e4GB", "sun7i-a20-olinuxino-micro-emmc")
 		OLINUXINO_CONFIG(EMMC, GBYTES(4), GBYTES(1), COM)
 	},
 	{
@@ -138,7 +138,7 @@ struct olinuxino_boards olinuxino_boards[] = {
 		OLINUXINO_CONFIG(NAND, GBYTES(8), GBYTES(1), COM)
 	},
 	{
-		OLINUXINO_BOARD_MICRO(9042, "A20-OLinuXino-MICRO-e16G", "sun7i-a20-olinuxino-emmc")
+		OLINUXINO_BOARD_MICRO(9042, "A20-OLinuXino-MICRO-e16G", "sun7i-a20-olinuxino-micro-emmc")
 		OLINUXINO_CONFIG(EMMC, GBYTES(16), GBYTES(1), COM)
 	},
 	{
@@ -146,11 +146,11 @@ struct olinuxino_boards olinuxino_boards[] = {
 		OLINUXINO_CONFIG(SPI, MBYTES(16), GBYTES(1), COM)
 	},
 	{
-		OLINUXINO_BOARD_MICRO(9684, "A20-OLinuXino-MICRO-e4Gs16M", "sun7i-a20-olinuxino-emmc")
+		OLINUXINO_BOARD_MICRO(9684, "A20-OLinuXino-MICRO-e4Gs16M", "sun7i-a20-olinuxino-micro-emmc")
 		OLINUXINO_CONFIG(EMMC, GBYTES(4), GBYTES(1), COM)
 	},
 	{
-		OLINUXINO_BOARD_MICRO(9689, "A20-OLinuXino-MICRO-e16Gs16M", "sun7i-a20-olinuxino-emmc")
+		OLINUXINO_BOARD_MICRO(9689, "A20-OLinuXino-MICRO-e16Gs16M", "sun7i-a20-olinuxino-micro-emmc")
 		OLINUXINO_CONFIG(EMMC, GBYTES(16), GBYTES(1), COM)
 	},
 
