@@ -727,6 +727,23 @@ static void parse_spl_header(const uint32_t spl_addr)
 	env_set_hex("fel_scriptaddr", spl->fel_script_address);
 }
 
+
+#if	defined(CONFIG_TARGET_A10_OLINUXINO) || defined(CONFIG_TARGET_A13_OLINUXINO) || \
+	defined(CONFIG_TARGET_A20_OLINUXINO) || defined(CONFIG_TARGET_A64_OLINUXINO)
+static void set_fdtfile(void)
+{
+	const char *fdtname;
+	char fdtfile[68];
+
+	fdtname = olinuxino_get_board_fdt();
+	if (!fdtname[0])
+		return;
+
+	sprintf(fdtfile, "%s.dtb", fdtname);
+	env_set("fdtfile", fdtfile);
+}
+#endif
+
 /*
  * Note this function gets called multiple times.
  * It must not make any changes to env variables which already exist.
@@ -836,6 +853,11 @@ static void setup_environment(const void *fdt)
 			env_set("serial#", serial_string);
 		}
 	}
+
+#if	defined(CONFIG_TARGET_A10_OLINUXINO) || defined(CONFIG_TARGET_A13_OLINUXINO) || \
+	defined(CONFIG_TARGET_A20_OLINUXINO) || defined(CONFIG_TARGET_A64_OLINUXINO)
+	set_fdtfile();
+#endif
 }
 
 int misc_init_r(void)
@@ -899,7 +921,7 @@ static int olinuxino_load_overlay(void *blob, char *overlay)
 static void olinuxino_load_overlays(void *blob)
 {
 	int ret;
-	char cmd[128];
+	char __maybe_unused cmd[128];
 	char *overlay;
 	void *backup;
 
