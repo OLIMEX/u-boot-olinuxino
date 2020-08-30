@@ -25,10 +25,10 @@ void spl_board_init(void)
 {
 	printf("A10-Lime Board no eeprom found!\n ");
 	
-		eeprom->header = OLINUXINO_EEPROM_MAGIC;
-		eeprom->id = 9999;
-		eeprom->revision.major = 'A';
-		eeprom->revision.minor = 0;
+	eeprom->header = OLINUXINO_EEPROM_MAGIC;
+	eeprom->id = 9999;
+	eeprom->revision.major = 'A';
+	eeprom->revision.minor = 0;
 
 }
 #endif /* CONFIG_SPL_BUILD */
@@ -36,17 +36,14 @@ void spl_board_init(void)
 #ifdef CONFIG_DISPLAY_BOARDINFO
 int show_board_info(void)
 {
-	char  rev[3];
 	const char *name;
 
 	name = olinuxino_get_board_name();
-
-	olinuxino_get_board_revision(rev);
-	printf("%-7s%s Rev.%s", "ID:", name, rev);
+	printf("%-7s%s\n", "ID:", name);
 
 	return 0;
 }
-#endif
+#endif /* CONFIG_DISPLAY_BOARDINFO */
 
 #ifdef CONFIG_BOARD_LATE_INIT
 int board_late_init(void)
@@ -54,6 +51,7 @@ int board_late_init(void)
 	int pin;
 
 	pin = sunxi_name_to_gpio("PC3");
+	if (pin<=0) return 0;
 
 	gpio_request(pin, "satapwr");
 	gpio_direction_output(pin, 1);

@@ -62,11 +62,11 @@ int show_board_info(void)
 	name = olinuxino_get_board_name();
 
 	olinuxino_get_board_revision(rev);
-	printf("%-7s%s Rev.%s", "ID:", name, rev);
+	printf("%-7s%s Rev.%s\n", "ID:", name, rev);
 
 	return 0;
 }
-#endif
+#endif /* CONFIG_DISPLAY_BOARDINFO  */
 
 #ifdef CONFIG_BOARD_LATE_INIT
 int board_late_init(void)
