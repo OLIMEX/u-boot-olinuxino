@@ -190,6 +190,7 @@ const char *env_fat_get_dev_part(void)
 }
 #endif /* CONFIG_ENV_IS_IN_FAT */
 
+#if defined(CONFIG_ENV_IS_IN_EXT4) && defined(CONFIG_ENV_IS_IN_FAT)
 enum env_location env_get_location(enum env_operation op, int prio)
 {
 	switch (prio) {
@@ -203,3 +204,4 @@ enum env_location env_get_location(enum env_operation op, int prio)
 
 	return ENVL_UNKNOWN;
 }
+#endif

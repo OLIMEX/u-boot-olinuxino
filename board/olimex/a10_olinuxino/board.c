@@ -25,10 +25,10 @@ void spl_board_init(void)
 {
 	printf("A10-Lime Board no eeprom found!\n ");
 	
-		eeprom->header = OLINUXINO_EEPROM_MAGIC;
-		eeprom->id = 9999;
-		eeprom->revision.major = 'A';
-		eeprom->revision.minor = 0;
+	eeprom->header = OLINUXINO_EEPROM_MAGIC;
+	eeprom->id = 9999;
+	eeprom->revision.major = 'A';
+	eeprom->revision.minor = 0;
 
 }
 #endif /* CONFIG_SPL_BUILD */
@@ -36,22 +36,27 @@ void spl_board_init(void)
 #ifdef CONFIG_DISPLAY_BOARDINFO
 int show_board_info(void)
 {
-	char  rev[3];
 	const char *name;
 
 	name = olinuxino_get_board_name();
-
-	olinuxino_get_board_revision(rev);
-	printf("%-7s%s Rev.%s", "ID:", name, rev);
+	printf("%-7s%s\n", "ID:", name);
 
 	return 0;
 }
-#endif
+#endif /* CONFIG_DISPLAY_BOARDINFO */
 
 #ifdef CONFIG_BOARD_LATE_INIT
 int board_late_init(void)
 {
-	/*No need to late init*/
+	int pin;
+
+	pin = sunxi_name_to_gpio("PC3");
+	if (pin<=0) return 0;
+
+	gpio_request(pin, "satapwr");
+	gpio_direction_output(pin, 1);
+	/* Give attached sata device time to power-up to avoid link timeouts */
+	mdelay(500);
 
 	return 0;
 }
@@ -69,19 +74,19 @@ int board_fit_config_name_match(const char *name)
 #ifdef CONFIG_ENV_IS_IN_EXT4
 const char *env_ext4_get_dev_part(void)
 {
-		return "0:auto";
+	return "0:auto";
 }
 #endif /* CONFIG_ENV_IS_IN_EXT4 */
 
 #ifdef CONFIG_ENV_IS_IN_FAT
 const char *env_fat_get_dev_part(void)
 {
-			return "0:auto";
-	
+	return "0:auto";
 }
 #endif /* CONFIG_ENV_IS_IN_FAT */
 
-#if CONFIG_ENV_IS_IN_SPI_FLASH
+#ifdef CONFIG_ENV_IS_IN_SPI_FLASH
+#if defined(CONFIG_ENV_IS_IN_EXT4) && defined(CONFIG_ENV_IS_IN_FAT)
 static enum env_location env_get_location_spi(int prio)
 {
 	switch (prio) {
@@ -97,7 +102,6 @@ static enum env_location env_get_location_spi(int prio)
 
 	return ENVL_UNKNOWN;
 }
-#endif
 
 static enum env_location env_get_location_default(int prio)
 {
@@ -112,6 +116,17 @@ static enum env_location env_get_location_default(int prio)
 
 	return ENVL_UNKNOWN;
 }
+#else
+static enum env_location env_get_location_spi(int __maybe_unused prio)
+{
+	return ENVL_SPI_FLASH;
+}
+
+static enum env_location env_get_location_default(int __maybe_unused prio)
+{
+	return ENVL_NOWHERE;
+}
+#endif
 
 enum env_location env_get_location(enum env_operation op, int prio)
 {
@@ -119,17 +134,13 @@ enum env_location env_get_location(enum env_operation op, int prio)
 
 	switch (boot) {
 	case BOOT_DEVICE_BOARD:
-#ifdef CONFIG_ENV_IS_IN_SPI_FLASH
 		if (olinuxino_board_has_spi())
 			return env_get_location_spi(prio);
 		else
-#endif
 			return env_get_location_default(prio);
 
-#ifdef CONFIG_ENV_IS_IN_SPI_FLASH
 	case BOOT_DEVICE_SPI:
 		return env_get_location_spi(prio);
-#endif
 
 	case BOOT_DEVICE_MMC1:
 	case BOOT_DEVICE_MMC2:
@@ -142,3 +153,19 @@ enum env_location env_get_location(enum env_operation op, int prio)
 
 	return env_get_location_default(prio);
 }
+
+#elif defined(CONFIG_ENV_IS_IN_EXT4) && defined(CONFIG_ENV_IS_IN_FAT)
+enum env_location env_get_location(enum env_operation op, int prio)
+{
+	switch (prio) {
+	case 0:
+		return ENVL_EXT4;
+	case 1:
+		return ENVL_FAT;
+	default:
+		break;
+	}
+
+	return ENVL_UNKNOWN;
+}
+#endif
