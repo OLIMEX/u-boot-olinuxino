@@ -53,6 +53,8 @@ void spl_board_init(void)
 		return;
 	}
 
+	/*Drop eMMC size detection */
+	/*
 	mmc_initialize(NULL);
 	mmc = find_mmc_device(1);
 	if (!mmc_init(mmc)) {
@@ -64,7 +66,9 @@ void spl_board_init(void)
 		return;
 	}
 
-	eeprom->id = 8857;
+	*/
+	eeprom->config.storage = 'e';
+	eeprom->id = 8367;
 }
 #endif
 
