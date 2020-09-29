@@ -362,6 +362,7 @@ static int stm32_usbphyc_probe(struct udevice *dev)
 	}
 
 	/* get usbphyc regulator */
+#if 0
 	ret = device_get_supply_regulator(dev, "vdda1v1-supply",
 					  &usbphyc->vdda1v1);
 	if (ret) {
@@ -375,6 +376,7 @@ static int stm32_usbphyc_probe(struct udevice *dev)
 		dev_err(dev, "Can't get vdda1v8-supply regulator\n");
 		return ret;
 	}
+#endif
 
 	/*
 	 * parse all PHY subnodes in order to populate regulator associated

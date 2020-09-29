@@ -12,6 +12,19 @@
 #include <linux/delay.h>
 #include "../common/stpmic1.h"
 
+#include <i2c.h>
+#include <dm.h>
+#include <axp209_mp1.h>
+
+#define AXP209_CHIP_VERSION_MASK       0x0f
+#define AXP209_LDO3_VOLTAGE_MASK        0x7f
+#define AXP209_LDO3_VOLTAGE_SET(x)      ((x) & AXP209_LDO3_VOLTAGE_MASK)
+#define AXP_GPIO0_CTRL                 0x90
+#define AXP_GPIO1_CTRL                 0x92
+#define AXP_GPIO2_CTRL                 0x93
+#define AXP_GPIO_CTRL_INPUT            0x02 /* Input */
+#define AXP209_OUTPUT_CTRL_LDO3                BIT(6)
+
 /* board early initialisation in board_f: need to use global variable */
 static u32 opp_voltage_mv __section(".data");
 
@@ -25,6 +38,17 @@ int board_early_init_f(void)
 {
 	if (IS_ENABLED(CONFIG_PMIC_STPMIC1) && CONFIG_IS_ENABLED(POWER_SUPPORT))
 		stpmic1_init(opp_voltage_mv);
+	else
+	{
+		printf("Init AXP209 PMIC \n");
+
+		int ret;
+
+		ret = axp_init();
+		ret = axp_set_aldo3(1200);
+		ret = axp_set_aldo2(3300);
+		printf("---------%d------------\n",ret);
+	}
 
 	return 0;
 }
