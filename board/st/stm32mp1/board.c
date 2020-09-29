@@ -9,7 +9,18 @@
 #include <asm/arch/ddr.h>
 #include <power/pmic.h>
 #include <power/stpmic1.h>
+#include <i2c.h>
+#include <dm.h>
+#include <axp209_mp1.h>
 
+#define AXP209_CHIP_VERSION_MASK	0x0f
+#define AXP209_LDO3_VOLTAGE_MASK        0x7f
+#define AXP209_LDO3_VOLTAGE_SET(x)      ((x) & AXP209_LDO3_VOLTAGE_MASK)
+#define AXP_GPIO0_CTRL			0x90
+#define AXP_GPIO1_CTRL			0x92
+#define AXP_GPIO2_CTRL			0x93
+#define AXP_GPIO_CTRL_INPUT		0x02 /* Input */
+#define AXP209_OUTPUT_CTRL_LDO3		BIT(6)
 #ifdef CONFIG_DEBUG_UART_BOARD_INIT
 void board_debug_uart_init(void)
 {
@@ -174,4 +185,20 @@ int board_ddr_power_init(enum ddr_type ddr_type)
 
 	return 0;
 }
+#else 
+
+int board_ddr_power_init(enum ddr_type ddr_type) {
+
+printf("Init AXP209 PMIC \n");
+int ret;
+
+ret = axp_init();
+ret = axp_set_aldo3(1200);
+ret = axp_set_aldo2(3300);
+printf("---------%d------------\n",ret);
+
+  return 0;
+
+}
+
 #endif
