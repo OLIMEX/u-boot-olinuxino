@@ -17,5 +17,7 @@ obj-$(CONFIG_ARMV7_PSCI) += psci.o
 obj-$(CONFIG_TFABOOT) += boot_params.o
 endif
 
+obj-y += axp209.o
+
 obj-$(CONFIG_$(SPL_)DM_REGULATOR) += pwr_regulator.o
 obj-$(CONFIG_OF_SYSTEM_SETUP) += fdt.o
