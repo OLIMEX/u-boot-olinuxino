@@ -18,11 +18,11 @@ function get_root_device
 		esac
 	done
 	[[ -z ${UUID} ]] && return ""
-
 	local PARTITION=$(blkid | grep "${UUID#PARTUUID=}" | cut -d':' -f1)
-	[[ -z ${PARTITION} ]] && return ""
-
-	# The following doesn't work on debian sid.
+	if [[ -z ${PARTITION} ]] ; then
+		local PARTITION=$(cat /proc/mounts  |grep " / " | cut -d' ' -f1)
+		[[ -z ${PARTITION} ]] && return ""
+	fi
 	DEVICE=$(lsblk -n -o PKNAME "${PARTITION}" | head -n1)
 
 	# Try regex expression
@@ -72,12 +72,56 @@ function install_sunxi
 
 }
 
+function install_stm32mp1xx
+{
+	DEV=$1
+
+	SPL="/usr/lib/u-boot-olinuxino/${TARGET}/u-boot-spl.stm32"
+
+	if [[ ! -e ${SPL} ]]; then
+		echo >&2 "$0: the file \'${SPL}\' is missing"
+		exit 1
+	fi
+
+	UBOOT="/usr/lib/u-boot-olinuxino/${TARGET}/u-boot.img"
+
+	if [[ ! -e ${UBOOT} ]]; then
+		echo >&2 "$0: the file \'${UBOOT}\' is missing"
+		exit 1
+	fi
+
+	# Try to detect the root device
+	if [[ -z ${DEV} ]]; then
+		DEV=$(get_root_device)
+		if [[ -z ${DEV} ]]; then
+			echo >&2 "$0: failed to detect the root device"
+			exit 1
+		fi
+	fi
+
+	if [[ ! -w ${DEV} ]]; then
+		echo >&2 "$0: device/image ($DEV) must be writable"
+		exit 1
+	fi
+
+	echo "Writing u-boot-spl.stm32"
+	dd if=${SPL} of=${DEV}p1
+	dd if=${SPL} of=${DEV}p2
+
+	echo "Writing u-boot.img"
+	dd if=${UBOOT} of=${DEV}p3
+
+}
+
 # Detect family
 for comp in $(cat "/proc/device-tree/compatible" | tr '\0' '\n'); do
 	if [[ "${comp}" == "allwinner,sun"* ]]; then
 		soc=$(cut -d',' -f2 <<< ${comp})
-	elif [[ "${comp}" == "olimex,"* ]]; then
-		board="${comp}"
+	elif [[ "${comp}" == "st,stm32mp1"* ]]; then
+		soc=$(cut -d',' -f2 <<< ${comp})
+	fi
+	if [[ "${comp}" == "olimex,"* ]]; then
+		board=$(cut -d',' -f2 <<< ${comp})
 	fi
 done
 
@@ -106,6 +150,16 @@ if [[ -z "${TARGET}" ]]; then
 		"sun50i-a64")
 			TARGET="a64-olinuxino"
 			INSTALL_FUNC=install_sunxi
+			;;
+
+		"stm32mp1"*)
+			if [[ "${board}" == "stm32mp1xx-olinuxino-lime" ]] ; then
+				TARGET="stm32mp1-olinuxino-lime"
+			fi
+			if [[ "${board}" == "stm32mp1xx-olinuxino-som" ]] ; then
+				TARGET="stm32mp1-olinuxino-som"
+			fi
+			INSTALL_FUNC=install_stm32mp1xx
 			;;
 
 		*)
