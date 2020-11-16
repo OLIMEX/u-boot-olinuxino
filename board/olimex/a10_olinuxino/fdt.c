@@ -139,16 +139,24 @@ static int board_disable_sdio(void *fdt)
 
 int board_fix_fdt(void *fdt)
 {
- int ret;
+	int ret;
 
-        ret = fdt_increase_size(fdt, 4096);
-        if (ret)
-                return ret;
+	ret = fdt_increase_size(fdt, 4096);
+	if (ret)
+		return ret;
 
-        ret = board_set_compatible(fdt);
-        if (ret)
-                return ret;
+	ret = board_set_compatible(fdt);
+	if (ret)
+		return ret;
 
+        /**
+         * Some boards, have both eMMC and SPI flash
+         */
+        if (olinuxino_board_has_spi()) {
+                ret = board_enable_spi_flash(fdt);
+                if (ret < 0)
+                        return ret;
+        }
 
 	return 0;
 }

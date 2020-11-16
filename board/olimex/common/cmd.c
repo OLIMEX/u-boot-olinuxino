@@ -14,7 +14,7 @@
 #include <olimex/lcd_olinuxino.h>
 #include <olimex/sys_eeprom.h>
 
-#if defined(CONFIG_TARGET_A20_OLINUXINO)
+#if defined(CONFIG_TARGET_A20_OLINUXINO) || defined(CONFIG_TARGET_A10_OLINUXINO)
 static int do_config_info(cmd_tbl_t *cmdtp, int flag,
 			  int argc, char *const argv[])
 {
@@ -248,7 +248,7 @@ static int do_olinuxino_opts(cmd_tbl_t *cmdtp, int flag, int argc, char *const a
 		cp = find_cmd_tbl(argv[1], cmd_monitor, ARRAY_SIZE(cmd_monitor));
 	else
 #endif
-#if defined(CONFIG_TARGET_A20_OLINUXINO)
+#if defined(CONFIG_TARGET_A20_OLINUXINO) || defined(CONFIG_TARGET_A10_OLINUXINO)
 	if (!strcmp(argv[0], "config"))
 		cp = find_cmd_tbl(argv[1], cmd_config, ARRAY_SIZE(cmd_config));
 	else
@@ -267,7 +267,7 @@ static int do_olinuxino_opts(cmd_tbl_t *cmdtp, int flag, int argc, char *const a
 }
 
 static cmd_tbl_t cmd_olinuxino[] = {
-#if defined(CONFIG_TARGET_A20_OLINUXINO)
+#if defined(CONFIG_TARGET_A20_OLINUXINO) || defined(CONFIG_TARGET_A10_OLINUXINO)
 	U_BOOT_CMD_MKENT(config, CONFIG_SYS_MAXARGS, 0, do_olinuxino_opts, "", ""),
 #endif
 #ifdef CONFIG_VIDEO_LCD_OLINUXINO
@@ -296,7 +296,7 @@ U_BOOT_CMD(
 	olinuxino, 7, 0, do_olinuxino_ops,
 	"OLinuXino board configurator",
 	"\n"
-#if defined(CONFIG_TARGET_A20_OLINUXINO)
+#if defined(CONFIG_TARGET_A20_OLINUXINO) || defined(CONFIG_TARGET_A10_OLINUXINO)
 	"olinuxino config info		- Print current configuration: ID, serial, ram, storage, grade...\n"
 	"olinuxino config list		- Print supported boards and their IDs\n"
 	"olinuxino config erase		- Erase currently stored configuration\n"

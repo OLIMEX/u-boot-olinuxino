@@ -286,8 +286,16 @@ struct olinuxino_boards olinuxino_boards[] = {
 #endif
 #if defined(CONFIG_TARGET_A10_OLINUXINO)
         {
-                OLINUXINO_BOARD(9999, "A10-OLinuXino-Lime", "sun4i-a10-olinuxino-lime")
-                OLINUXINO_CONFIG(NAND, GBYTES(4), MBYTES(512), COM)
+                OLINUXINO_BOARD(10663, "A10-OLinuXino-LIME-e16Gs16M", "sun4i-a10-olinuxino-lime-emmc")
+                OLINUXINO_CONFIG(EMMC, GBYTES(16), MBYTES(512), COM)
+        },
+        {
+                OLINUXINO_BOARD(8950, "A10-OLinuXino-LIME-n8GB", "sun4i-a10-olinuxino-lime-emmc")
+                OLINUXINO_CONFIG(EMMC, GBYTES(8), MBYTES(512), COM)
+        },
+        {
+                OLINUXINO_BOARD(4746, "A10-OLinuXino-LIME", "sun4i-a10-olinuxino-lime")
+                OLINUXINO_CONFIG(NONE, -1, MBYTES(512), COM)
         },
 #endif
 
@@ -381,6 +389,8 @@ bool olinuxino_board_has_spi(void)
 
 	/* Some boards have both eMMC and SPI */
 	switch (eeprom->id) {
+	case 10663:             // A10-OLinuXino-LIME-e16Gs16M
+	case 8950:              // A10-OLinuXino-LIME-n8GB
 	case 8958:              // A20-SOM204-1Gs16Me16G-MC
 	case 10157:             // T2-SOM204-1Gs16Me4G-C-I
 
