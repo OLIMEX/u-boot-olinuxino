@@ -246,7 +246,7 @@
 	/*vqmmc-supply = <&sd_switch>;*/
 	status = "okay";
 };
-/*
+
 &sdmmc2 {
 	pinctrl-names = "default", "opendrain", "sleep";
 	pinctrl-0 = <&sdmmc2_b4_pins_a &sdmmc2_d47_pins_a>;
@@ -257,12 +257,12 @@
 	no-sdio;
 	st,neg-edge;
 	bus-width = <8>;
-	vmmc-supply = <&v3v3>;
-	vqmmc-supply = <&v3v3>;
+	vmmc-supply = <&vdd_sd3v3>;
+	vqmmc-supply = <&vdd_sd3v3>;
 	mmc-ddr-3_3v;
 	status = "okay";
 };
-*/
+
 &timers6 {
 	status = "okay";
 	/* spare dmas for other usage */
