@@ -409,6 +409,7 @@ bool olinuxino_board_has_spi(void)
 	case 9696:              // A20-OLinuXino-LIME-e4Gs16M
 	case 9734:              // T2-OLinuXino-LIME-e4Gs16M-IND
 	case 10481:             // T2-OLinuXino-LIME-e8Gs16M-IND
+	case 10234:		// T2-SOM204-1Gs16Me8G-MC-I
 
 	case 9827:              // T2-SOM-e8Gs16M-IND
 		return true;
