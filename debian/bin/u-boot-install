@@ -18,11 +18,11 @@ function get_root_device
 		esac
 	done
 	[[ -z ${UUID} ]] && return ""
-
 	local PARTITION=$(blkid | grep "${UUID#PARTUUID=}" | cut -d':' -f1)
-	[[ -z ${PARTITION} ]] && return ""
-
-	# The following doesn't work on debian sid.
+	if [[ -z ${PARTITION} ]] ; then
+		local PARTITION=$(cat /proc/mounts  |grep " / " | cut -d' ' -f1)
+		[[ -z ${PARTITION} ]] && return ""
+	fi
 	DEVICE=$(lsblk -n -o PKNAME "${PARTITION}" | head -n1)
 
 	# Try regex expression
@@ -75,6 +75,7 @@ function install_sunxi
 function install_stm32mp1xx
 {
 	DEV=$1
+
 	SPL="/usr/lib/u-boot-olinuxino/${TARGET}/u-boot-spl.stm32"
 
 	if [[ ! -e ${SPL} ]]; then
@@ -118,8 +119,9 @@ for comp in $(cat "/proc/device-tree/compatible" | tr '\0' '\n'); do
 		soc=$(cut -d',' -f2 <<< ${comp})
 	elif [[ "${comp}" == "st,stm32mp1"* ]]; then
 		soc=$(cut -d',' -f2 <<< ${comp})
-	elif [[ "${comp}" == "olimex,"* ]]; then
-		board="${comp}"
+	fi
+	if [[ "${comp}" == "olimex,"* ]]; then
+		board=$(cut -d',' -f2 <<< ${comp})
 	fi
 done
 
@@ -151,7 +153,12 @@ if [[ -z "${TARGET}" ]]; then
 			;;
 
 		"stm32mp1"*)
-			TARGET="stm32mp1-olinuxino"
+			if [[ "${board}" == "stm32mp1xx-olinuxino" ]] ; then
+				TARGET="stm32mp1-olinuxino"
+			fi
+			if [[ "${board}" == "stm32mp1xx-olinuxino-som" ]] ; then
+				TARGET="stm32mp1-olinuxino-som"
+			fi
 			INSTALL_FUNC=install_stm32mp1xx
 			;;
 
