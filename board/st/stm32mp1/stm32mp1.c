@@ -873,6 +873,72 @@ int mmc_get_env_dev(void)
 	return (bootmode & TAMP_BOOT_INSTANCE_MASK) - 1;
 }
 
+static int olinuxino_load_overlay(void *blob, char *overlay)
+{
+	char cmd[128];
+	int ret;
+
+	printf("Applying overlay: \'%s\'...\n", overlay);
+
+	/* Load file */
+	sprintf(cmd, "load ${devtype} ${devnum}:${distro_bootpart} 0xc4300000 %s", overlay);
+	ret = run_command(cmd, 0);
+	if (ret)
+		printf("Failed to load overlay.\n");
+
+	return ret;
+}
+
+static void olinuxino_load_overlays(void *blob)
+{
+	int ret;
+	char cmd[128];
+	char *overlay;
+	void *backup;
+
+	overlay = strtok(env_get("fdtoverlays"), " ");
+	if (!overlay)
+		return;
+
+	/* Remove optional new line */
+	if (*(overlay + strlen(overlay) - 1) == '\n')
+		*(overlay + strlen(overlay) - 1) = 0;
+
+	/* Make a backup of the original blob */
+	backup = malloc(fdt_totalsize(blob));
+	if (!backup) {
+		printf("Failed to make backup copy.\n");
+		return;
+	}
+	memcpy(backup, blob, fdt_totalsize(blob));
+
+	/* Increase size */
+	ret = fdt_increase_size(blob, 0x1000);
+	if (ret) {
+		printf("Failed to increase FDT blob size.\n");
+		return;
+	}
+
+	while (overlay) {
+		ret = olinuxino_load_overlay(blob, overlay);
+		if (ret)
+			goto err;
+
+		/* Apply */
+		ret = run_command("fdt apply 0xc4300000", 0);
+		if (ret) {
+			printf("Failed to apply overlay.\n");
+
+			printf("Restoring the original FDT blob...\n");
+			memcpy(blob, backup, fdt_totalsize(backup));
+			fdt_set_totalsize(blob, fdt_totalsize(backup));
+			return;
+		}
+err:
+		overlay = strtok(NULL, " ");
+	}
+}
+
 #if defined(CONFIG_OF_BOARD_SETUP)
 int ft_board_setup(void *blob, struct bd_info *bd)
 {
@@ -890,6 +956,8 @@ int ft_board_setup(void *blob, struct bd_info *bd)
 	    (strcmp(boot_device, "serial") && strcmp(boot_device, "usb")))
 		if (IS_ENABLED(CONFIG_FDT_FIXUP_PARTITIONS))
 			fdt_fixup_mtdparts(blob, nodes, ARRAY_SIZE(nodes));
+
+	olinuxino_load_overlays(blob);
 
 	return 0;
 }
