@@ -128,7 +128,6 @@
 	"if test ${boot_device} = serial || test ${boot_device} = usb;" \
 	"then stm32prog ${boot_device} ${boot_instance}; " \
 	"else " \
-		"run env_check;" \
 		"if test ${boot_device} = mmc;" \
 		"then env set boot_targets \"mmc${boot_instance}\"; fi;" \
 		"if test ${boot_device} = nand ||" \
