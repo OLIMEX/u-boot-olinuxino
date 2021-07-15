@@ -13,8 +13,8 @@
 #include <dt-bindings/mfd/st,stpmic1.h>
 
 / {
-	model = "STM32MP1 OLinuXino";
-	compatible = "olimex,stm32mp1-olinuxino", "st,stm32mp157";
+	model = "STM32MP1 OLinuXino-LIME";
+	compatible = "olimex,stm32mp1xx-olinuxino-lime", "st,stm32mp157";
 
 	chosen {
 		stdout-path = "serial0:115200n8";
