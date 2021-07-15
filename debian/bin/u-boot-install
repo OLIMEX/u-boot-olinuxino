@@ -153,8 +153,8 @@ if [[ -z "${TARGET}" ]]; then
 			;;
 
 		"stm32mp1"*)
-			if [[ "${board}" == "stm32mp1xx-olinuxino" ]] ; then
-				TARGET="stm32mp1-olinuxino"
+			if [[ "${board}" == "stm32mp1xx-olinuxino-lime" ]] ; then
+				TARGET="stm32mp1-olinuxino-lime"
 			fi
 			if [[ "${board}" == "stm32mp1xx-olinuxino-som" ]] ; then
 				TARGET="stm32mp1-olinuxino-som"

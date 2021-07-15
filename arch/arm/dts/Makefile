@@ -1002,7 +1002,7 @@ dtb-$(CONFIG_STM32MP15x) += \
 	stm32mp15xx-dhcom-pdk2.dtb \
 	stm32mp15xx-dhcom-picoitx.dtb \
 	stm32mp15xx-dhcor-avenger96.dtb \
-	stm32mp1-olinuxino.dtb \
+	stm32mp1-olinuxino-lime.dtb \
 	stm32mp1-olinuxino-som.dtb
 
 dtb-$(CONFIG_SOC_K3_AM6) += k3-am654-base-board.dtb k3-am654-r5-base-board.dtb
