@@ -85,6 +85,11 @@ config TARGET_DH_STM32MP1_PDK2
 	help
 		Target the DH PDK2 development kit with STM32MP15x SoM.
 
+config TARGET_OLIMEX_STM32MP1
+        bool "OLIMEX STM32MP1"
+        select STM32MP15x
+        help
+                Target the Olimex STM32MP1 Olinuxino board
 endchoice
 
 config SYS_TEXT_BASE
@@ -163,5 +168,6 @@ endif
 source "arch/arm/mach-stm32mp/cmd_stm32prog/Kconfig"
 source "board/st/stm32mp1/Kconfig"
 source "board/dhelectronics/dh_stm32mp1/Kconfig"
+source "board/olimex/stm32mp1_olinuxino/Kconfig"
 
 endif

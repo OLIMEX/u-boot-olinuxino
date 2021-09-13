@@ -6,7 +6,9 @@
 
 #include <common.h>
 #include <spl.h>
+#ifndef CONFIG_TARGET_OLIMEX_STM32MP1
 #include <asm/arch/spl.h>
+#endif
 #include <linux/ctype.h>
 
 
@@ -17,7 +19,7 @@
 #include <olimex/lcd_olinuxino.h>
 #include <olimex/sys_eeprom.h>
 
-#if defined(CONFIG_TARGET_A20_OLINUXINO) || defined(CONFIG_TARGET_A10_OLINUXINO)
+#if defined(CONFIG_TARGET_A20_OLINUXINO) || defined(CONFIG_TARGET_A10_OLINUXINO) || defined(CONFIG_TARGET_OLIMEX_STM32MP1)
 static int do_config_info(struct cmd_tbl *cmdtp, int flag,
 			  int argc, char *const argv[])
 {
@@ -107,6 +109,7 @@ static int do_config_write(struct cmd_tbl *cmdtp, int flag,
 			return CMD_RET_FAILURE;
 		}
 	} else {
+#if !defined(CONFIG_TARGET_OLIMEX_STM32MP1)
 		sunxi_get_sid(sid);
 		if (sid[0] != 0) {
 
@@ -125,10 +128,12 @@ static int do_config_write(struct cmd_tbl *cmdtp, int flag,
 			memcpy(&info.mac, &mac, 12);
 
 		}
+#endif	
 	}
 
 	printf("Erasing EEPROM configuration...\n");
 	if (olinuxino_i2c_eeprom_erase()) {
+#ifndef CONFIG_TARGET_OLIMEX_STM32MP1
 #ifdef CONFIG_MMC
 		bootdev = sunxi_get_boot_device();
 
@@ -141,6 +146,7 @@ static int do_config_write(struct cmd_tbl *cmdtp, int flag,
 #else
 		return CMD_RET_FAILURE;
 #endif
+#endif
 	}
 
 	memcpy(eeprom, &info, 256);
@@ -148,6 +154,7 @@ static int do_config_write(struct cmd_tbl *cmdtp, int flag,
 	printf("Writting EEPROM configuration...\n");
 	if (!olinuxino_i2c_eeprom_write())
 		olinuxino_i2c_eeprom_read();
+#ifndef CONFIG_TARGET_OLIMEX_STM32MP1
 
 #ifdef CONFIG_MMC
 	bootdev = sunxi_get_boot_device();
@@ -158,7 +165,7 @@ static int do_config_write(struct cmd_tbl *cmdtp, int flag,
 			olinuxino_mmc_eeprom_read();
 	}
 #endif
-
+#endif
 	return CMD_RET_SUCCESS;
 }
 
@@ -251,7 +258,7 @@ static int do_olinuxino_opts(struct cmd_tbl *cmdtp, int flag, int argc, char *co
 		cp = find_cmd_tbl(argv[1], cmd_monitor, ARRAY_SIZE(cmd_monitor));
 	else
 #endif
-#if defined(CONFIG_TARGET_A20_OLINUXINO) || defined(CONFIG_TARGET_A10_OLINUXINO)
+#if defined(CONFIG_TARGET_A20_OLINUXINO) || defined(CONFIG_TARGET_A10_OLINUXINO) || defined(CONFIG_TARGET_OLIMEX_STM32MP1)
 	if (!strcmp(argv[0], "config"))
 		cp = find_cmd_tbl(argv[1], cmd_config, ARRAY_SIZE(cmd_config));
 	else
@@ -270,7 +277,7 @@ static int do_olinuxino_opts(struct cmd_tbl *cmdtp, int flag, int argc, char *co
 }
 
 static struct cmd_tbl cmd_olinuxino[] = {
-#if defined(CONFIG_TARGET_A20_OLINUXINO) || defined(CONFIG_TARGET_A10_OLINUXINO)
+#if defined(CONFIG_TARGET_A20_OLINUXINO) || defined(CONFIG_TARGET_A10_OLINUXINO) || defined(CONFIG_TARGET_OLIMEX_STM32MP1)
 	U_BOOT_CMD_MKENT(config, CONFIG_SYS_MAXARGS, 0, do_olinuxino_opts, "", ""),
 #endif
 #ifdef CONFIG_VIDEO_LCD_OLINUXINO
@@ -299,7 +306,7 @@ U_BOOT_CMD(
 	olinuxino, 7, 0, do_olinuxino_ops,
 	"OLinuXino board configurator",
 	"\n"
-#if defined(CONFIG_TARGET_A20_OLINUXINO) || defined(CONFIG_TARGET_A10_OLINUXINO)
+#if defined(CONFIG_TARGET_A20_OLINUXINO) || defined(CONFIG_TARGET_A10_OLINUXINO) || defined(CONFIG_TARGET_OLIMEX_STM32MP1)
 	"olinuxino config info		- Print current configuration: ID, serial, ram, storage, grade...\n"
 	"olinuxino config list		- Print supported boards and their IDs\n"
 	"olinuxino config erase		- Erase currently stored configuration\n"
