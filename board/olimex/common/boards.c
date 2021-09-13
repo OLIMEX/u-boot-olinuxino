@@ -302,7 +302,21 @@ struct olinuxino_boards olinuxino_boards[] = {
                 OLINUXINO_CONFIG(NONE, -1, MBYTES(512), COM)
         },
 #endif
+#if defined(CONFIG_TARGET_OLIMEX_STM32MP1)
+        {
+		OLINUXINO_BOARD(10469, "STMP157-OLinuXino-LIME2H-IND", "stm32mp1-olinuxino")
+		OLINUXINO_CONFIG(NONE, -1, GBYTES(1), IND)
+        },
+        {
+		OLINUXINO_BOARD(10887, "STMP157-OLinuXino-LIME2H-EXT", "stm32mp1-olinuxino")
+		OLINUXINO_CONFIG(NONE, -1, GBYTES(1), COM)
+        },
+        {
+		OLINUXINO_BOARD(10997, "STMP157-OLinuXino-LIME2-EXT", "stm32mp1-olinuxino")
+		OLINUXINO_CONFIG(EMMC, -1, GBYTES(1), COM)
+        },
 
+#endif
 	{
 		.id = 0,
 	}

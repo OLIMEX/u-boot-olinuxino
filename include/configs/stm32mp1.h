@@ -77,6 +77,8 @@
 /*****************************************************************************/
 #ifdef CONFIG_DISTRO_DEFAULTS
 /*****************************************************************************/
+#define OLINUXINO_EEPROM_BUS 0
+#define OLINUXINO_EEPROM_ADDRESS 0x50
 
 #if !defined(CONFIG_SPL_BUILD)
 

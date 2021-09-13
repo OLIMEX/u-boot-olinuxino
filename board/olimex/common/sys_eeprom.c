@@ -8,7 +8,9 @@
 #include <i2c.h>
 #include <mmc.h>
 #include <spl.h>
+#ifndef CONFIG_TARGET_OLIMEX_STM32MP1
 #include <asm/arch/spl.h>
+#endif
 #include <u-boot/crc.h>
 
 #include <linux/delay.h>
@@ -20,13 +22,22 @@ struct olinuxino_eeprom *eeprom = OLINUXINO_EEPROM_DATA;
 static int olinuxino_i2c_eeprom_init(void)
 {
 	int ret;
+#ifdef CONFIG_DM_I2C
+        struct udevice *dev;
+        ret = i2c_get_chip_for_busnum(0,0x50, 1, &dev);
+        if (ret) {
+                printf("%s: Cannot find udev for a bus %d\n",
+                       __func__, 4);
+                return ret;
+        }
+#else
 
 	if ((ret = i2c_set_bus_num(OLINUXINO_EEPROM_BUS)))
 		return ret;
 
 	if ((ret = i2c_probe(0x50)))
 		return ret;
-
+#endif
 	return 0;
 }
 
@@ -35,11 +46,19 @@ int olinuxino_i2c_eeprom_read(void)
 	uint32_t crc;
 	int ret;
 
-	if ((ret = olinuxino_i2c_eeprom_init()))
-		return ret;
+	 if ((ret = olinuxino_i2c_eeprom_init()))
+                return ret;
+#ifdef CONFIG_DM_I2C
+        struct udevice *dev;
+        ret = i2c_get_chip_for_busnum(0,0x50, 1, &dev);
 
-	if ((ret = i2c_read(OLINUXINO_EEPROM_ADDRESS, 0, 1, (uint8_t *)eeprom, 256)))
-		return ret;
+        if ((ret = dm_i2c_read(dev, 0x00, (uint8_t *)eeprom, 256)))
+                return ret;
+
+#else
+        if ((ret = i2c_read(OLINUXINO_EEPROM_ADDRESS, 0, 1, (uint8_t *)eeprom, 256)))
+                return ret;
+#endif
 
 	if (eeprom->header != OLINUXINO_EEPROM_MAGIC) {
 		memset(eeprom, 0xFF, 256);
@@ -58,56 +77,91 @@ int olinuxino_i2c_eeprom_read(void)
 #ifndef CONFIG_SPL_BUILD
 int olinuxino_i2c_eeprom_write(void)
 {
-	uint8_t *data = (uint8_t *)eeprom;
-	uint16_t i;
-	int ret;
+        uint8_t *data = (uint8_t *)eeprom;
+        uint16_t i;
+        int ret;
+#ifdef CONFIG_DM_I2C
+        struct udevice *dev;
+        if ((ret = i2c_get_chip_for_busnum(0,0x50, 1, &dev))) {
+                printf("ERROR: Failed to init eeprom!\n");
+                return ret;
+        }
+#else
+        if ((ret = olinuxino_i2c_eeprom_init())) {
+                printf("ERROR: Failed to init eeprom!\n");
+                return ret;
+        }
+#endif
+        /* Restore magic header */
+        eeprom->header = OLINUXINO_EEPROM_MAGIC;
 
-	if ((ret = olinuxino_i2c_eeprom_init())) {
-		printf("ERROR: Failed to init eeprom!\n");
-		return ret;
-	}
+        /* Calculate new chechsum */
+        eeprom->crc = crc32(0L, data, 252);
 
-	/* Restore magic header */
-	eeprom->header = OLINUXINO_EEPROM_MAGIC;
-
-	/* Calculate new chechsum */
-	eeprom->crc = crc32(0L, data, 252);
-
-	/* Write new values */
-	for(i = 0; i < 256; i += 16) {
-		if ((ret = i2c_write(OLINUXINO_EEPROM_ADDRESS, i, 1, data + i , 16))) {
-			printf("ERROR: Failed to write eeprom!\n");
-			return ret;
-		}
-		mdelay(5);
-	}
+        /* Write new values */
+#ifdef CONFIG_DM_I2C
+         for(i = 0; i < 256; i += 16) {
+                 if ((ret = dm_i2c_write(dev, i,data + i , 16))) {
+                         printf("ERROR: Failed to write eeprom!\n");
+                         return ret;
+                }
+                mdelay(5);
+         }
+#else
+        for(i = 0; i < 256; i += 16) {
+                if ((ret = i2c_write(OLINUXINO_EEPROM_ADDRESS, i, 1, data + i , 16))) {
+                        printf("ERROR: Failed to write eeprom!\n");
+                        return ret;
+                }
+                mdelay(5);
+        }
+#endif
 
 	return 0;
 }
 
 int olinuxino_i2c_eeprom_erase(void)
 {
-	uint8_t *data = (uint8_t *)eeprom;
-	uint16_t i;
-	int ret;
+        uint8_t *data = (uint8_t *)eeprom;
+        uint16_t i;
+        int ret;
 
-	/* Initialize EEPROM */
-	if ((ret = olinuxino_i2c_eeprom_init())) {
-		printf("ERROR: Failed to init eeprom!\n");
-		return ret;
-	}
+        /* Initialize EEPROM */
+#ifdef CONFIG_DM_I2C
+        struct udevice *dev;
+        if ((ret = i2c_get_chip_for_busnum(0,0x50, 1, &dev))) {
+                 printf("ERROR: Failed to init eeprom!\n");
+                 return ret;
+        }
+#else
 
-	/* Erase previous data */
-	memset((uint8_t *)eeprom, 0xFF, 256);
+        if ((ret = olinuxino_i2c_eeprom_init())) {
+                printf("ERROR: Failed to init eeprom!\n");
+                return ret;
+        }
+#endif
+        /* Erase previous data */
+        memset((uint8_t *)eeprom, 0xFF, 256);
 
-	/* Write data */
-	for(i = 0; i < 256; i += 16) {
-		if ((ret = i2c_write(OLINUXINO_EEPROM_ADDRESS, i, 1, data + i, 16))) {
-			printf("ERROR: Failed to write eeprom!\n");
-			return ret;
-		}
-		mdelay(5);
-	}
+        /* Write data */
+#ifdef CONFIG_DM_I2C
+         for(i = 0; i < 256; i += 16) {
+                 if ((ret = dm_i2c_write(dev, i,data + i , 16))) {
+                        printf("ERROR: Failed to write eeprom!\n");
+                        return ret;
+                 }
+                 mdelay(5);
+         }
+#else
+
+        for(i = 0; i < 256; i += 16) {
+                if ((ret = i2c_write(OLINUXINO_EEPROM_ADDRESS, i, 1, data + i, 16))) {
+                        printf("ERROR: Failed to write eeprom!\n");
+                        return ret;
+                }
+                mdelay(5);
+        }
+#endif
 
 	return 0;
 }
