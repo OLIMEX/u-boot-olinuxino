@@ -17,7 +17,7 @@ static u32 opp_voltage_mv __section(".data");
 
 void board_vddcore_init(u32 voltage_mv)
 {
-	if (IS_ENABLED(CONFIG_PMIC_STPMIC1) && CONFIG_IS_ENABLED(POWER_SUPPORT))
+//	if (IS_ENABLED(CONFIG_PMIC_STPMIC1) && CONFIG_IS_ENABLED(POWER_SUPPORT))
 		opp_voltage_mv = voltage_mv;
 }
 
@@ -26,13 +26,17 @@ int board_early_init_f(void)
 
 		printf("Init AXP209 PMIC \n");
 
+		printf("VDD Core set to: %d mv \n",opp_voltage_mv);
 		int ret;
 
 		ret = axp_init();
 		ret = axp_set_aldo3(1200);
-		ret = axp_set_aldo2(3300);
+		ret = axp_set_dcdc2(opp_voltage_mv);
+		mdelay(100);
+		if (ret)
+			printf("AXP Init Failed \n");
 		printf("---------%d------------\n",ret);
-	
+
 
 	return 0;
 }
