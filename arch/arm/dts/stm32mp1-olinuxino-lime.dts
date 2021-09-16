@@ -199,6 +199,16 @@
 		status = "disabled";
 	};
 
+	axp209: pmic@34 {
+               compatible = "x-powers,axp209";
+                reg = <0x34>;
+                interrupt-parent = <&gpioa>;
+                interrupts = <0 IRQ_TYPE_LEVEL_LOW>;
+
+               interrupt-controller;
+               #interrupt-cells = <1>;
+        };
+
         eeprom: eeprom@50 {
                 compatible = "atmel,24c16";
                 reg = <0x50>;
