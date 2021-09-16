@@ -401,6 +401,16 @@ int board_late_init(void)
 		run_command(cmd, 0);
 	}
 
+	u32 mod_reg;
+	mod_reg = readl(0x50002000);
+	mod_reg = (mod_reg & ~(1UL << 0)) | (0 << 0);
+	mod_reg = (mod_reg & ~(1UL << 1)) | (0 << 1);
+	writel(mod_reg , 0x50002000);
+
+	mod_reg = readl(0x5000200c);
+	mod_reg = (mod_reg | (1UL << 0));
+	writel(mod_reg , 0x5000200c);
+
 	return 0;
 }
 
