@@ -100,6 +100,7 @@ bool olinuxino_board_has_spi(void);
 enum olinuxino_family olinuxino_get_board_family(void);
 enum olinuxino_phy_mode olinuxino_get_phy_mode(void);
 uint8_t olinuxino_phy_txdelay(void);
+uint8_t olinuxino_phy_rxdelay(void);
 bool olinuxino_board_has_emac(void);
 #endif
 

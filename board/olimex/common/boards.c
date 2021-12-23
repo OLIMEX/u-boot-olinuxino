@@ -489,6 +489,20 @@ uint8_t olinuxino_phy_txdelay()
 	}
 }
 
+uint8_t olinuxino_phy_rxdelay()
+{
+	switch (olinuxino_get_board_family()) {
+	case OLINUXINO_LIME2:
+			return 0;
+	case OLINUXINO_SOM:
+			return 6;
+	case OLINUXINO_SOM204:
+		return 0;
+	default:
+		return 0;
+	}
+}
+
 bool olinuxino_board_has_emac()
 {
 	if (!olinuxino_eeprom_is_valid())

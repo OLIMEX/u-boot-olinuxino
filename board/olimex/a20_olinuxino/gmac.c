@@ -20,6 +20,7 @@ void eth_init_board(void)
 		(struct sunxi_ccm_reg *)SUNXI_CCM_BASE;
 	enum olinuxino_phy_mode mode;
 	uint8_t tx_delay = 0;
+	uint8_t rx_delay = 0;
 	int pin;
 
 	/**
@@ -33,6 +34,7 @@ void eth_init_board(void)
 		return;
 
 	tx_delay = olinuxino_phy_txdelay();
+	rx_delay = olinuxino_phy_rxdelay();
 
 	/* Set up clock gating */
 	setbits_le32(&ccm->ahb_gate1, 0x1 << AHB_GATE_OFFSET_GMAC);
@@ -40,6 +42,8 @@ void eth_init_board(void)
 	if (mode == OLINUXINO_PHY_MODE_RGMII) {
 		setbits_le32(&ccm->gmac_clk_cfg,
 			     CCM_GMAC_CTRL_TX_CLK_DELAY(tx_delay));
+			     setbits_le32(&ccm->gmac_clk_cfg,
+			     CCM_GMAC_CTRL_RX_CLK_DELAY(rx_delay));
 		setbits_le32(&ccm->gmac_clk_cfg,
 			     CCM_GMAC_CTRL_TX_CLK_SRC_INT_RGMII |
 			     CCM_GMAC_CTRL_GPIT_RGMII);
