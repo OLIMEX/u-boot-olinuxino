@@ -81,12 +81,13 @@ static const struct pmic_child_info pwr_children_info[] = {
 
 static int stm32mp_pwr_bind(struct udevice *dev)
 {
+#if defined(CONFIG_PMIC_STPMIC1)
 	int children;
 
 	children = pmic_bind_children(dev, dev_ofnode(dev), pwr_children_info);
 	if (!children)
 		dev_dbg(dev, "no child found\n");
-
+#endif
 	return 0;
 }
 

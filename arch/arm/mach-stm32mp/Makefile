@@ -19,3 +19,4 @@ endif
 
 obj-$(CONFIG_$(SPL_)DM_REGULATOR) += pwr_regulator.o
 obj-$(CONFIG_OF_SYSTEM_SETUP) += fdt.o
+obj-$(CONFIG_AXP_PMIC_BUS) += pmic_bus.o
