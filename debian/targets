@@ -4,3 +4,4 @@ armhf	a20-olinuxino	A20-OLinuXino	u-boot-sunxi-with-spl.bin
 armhf	a10-olinuxino	A10-OLinuXino	u-boot-sunxi-with-spl.bin
 armhf	a13-olinuxino	A13-OLinuXino	u-boot-sunxi-with-spl.bin
 arm64	a64-olinuxino	A64-OLinuXino	u-boot-sunxi-with-spl.bin
+armhf   stm32mp1-olinuxino STM32-OLinuXino u-boot.img u-boot-spl.stm32

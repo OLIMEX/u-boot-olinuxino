@@ -269,6 +269,10 @@ struct olinuxino_boards olinuxino_boards[] = {
 		OLINUXINO_BOARD(9849, "A64-OLinuXino-1Ge16GW", "sun50i-a64-olinuxino-emmc")
 		OLINUXINO_CONFIG(EMMC, GBYTES(16), GBYTES(2), COM)
 	},
+	{
+		OLINUXINO_BOARD(10728, "A64-OLinuXino-1Ge16GW-EA", "sun50i-a64-olinuxino-emmc")
+		OLINUXINO_CONFIG(EMMC, GBYTES(16), GBYTES(2), COM)
+	},
 #endif
 #if defined(CONFIG_TARGET_A13_OLINUXINO)
         {
