@@ -12,7 +12,7 @@
 #include <common.h>
 #include <command.h>
 #include <errno.h>
-#include <asm/arch/pmic_bus.h>
+#include <power/pmic_bus.h>
 #include <axp_pmic.h>
 
 #define AXP305_DCDC4_1600MV_OFFSET 46

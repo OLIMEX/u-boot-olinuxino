@@ -12,7 +12,7 @@
 #include <common.h>
 #include <command.h>
 #include <errno.h>
-#include <asm/arch/pmic_bus.h>
+#include <power/pmic_bus.h>
 #include <axp_pmic.h>
 
 static u8 axp221_mvolt_to_cfg(int mvolt, int min, int max, int div)

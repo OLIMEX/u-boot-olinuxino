@@ -12,7 +12,7 @@
 #include <asm/arch/p2wi.h>
 #include <asm/arch/rsb.h>
 #include <i2c.h>
-#include <asm/arch/pmic_bus.h>
+#include <power/pmic_bus.h>
 
 #define AXP152_I2C_ADDR			0x30
 
