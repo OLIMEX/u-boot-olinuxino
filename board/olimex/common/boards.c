@@ -215,7 +215,7 @@ struct olinuxino_boards olinuxino_boards[] = {
 		OLINUXINO_CONFIG(NONE, -1, GBYTES(1), IND)
 	},
 	{
-		OLINUXINO_BOARD_SOM(9827, "T2-SOM-e8Gs16M-IND", "sun7i-a20-olimex-som-evb")
+		OLINUXINO_BOARD_SOM(9827, "T2-SOM-e8Gs16M-IND", "sun7i-a20-olimex-som-evb-emmc")
 		OLINUXINO_CONFIG(EMMC, GBYTES(8), GBYTES(1), IND)
 	},
 
