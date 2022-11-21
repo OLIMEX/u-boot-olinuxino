@@ -6,3 +6,4 @@ armhf	a13-olinuxino	A13-OLinuXino	u-boot-sunxi-with-spl.bin
 arm64	a64-olinuxino	A64-OLinuXino	u-boot-sunxi-with-spl.bin
 armhf   stm32mp1-olinuxino-lime STM32-OLinuXino-LIME u-boot.img u-boot-spl.stm32
 armhf   stm32mp1-olinuxino-som STM32-OLinuXino-SOM u-boot.img u-boot-spl.stm32
+armhf   stm32mp1-olinuxino-som-base STM32-OLinuXino-SOM u-boot.img u-boot-spl.stm32
