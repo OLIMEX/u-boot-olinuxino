@@ -197,9 +197,16 @@ int olinuxino_mmc_eeprom_read(void)
 #ifndef CONFIG_SPL_BUILD
 int olinuxino_mmc_eeprom_write(void)
 {
+	uint8_t *data = (uint8_t *)eeprom;
 	struct mmc *mmc = NULL;
 	unsigned long count;
 	int ret = 0;
+
+	/* Restore magic header */
+	eeprom->header = OLINUXINO_EEPROM_MAGIC;
+
+	/* Calculate new chechsum */
+	eeprom->crc = crc32(0L, data, 252);
 
 	mmc = find_mmc_device((sunxi_get_boot_device() == BOOT_DEVICE_MMC1) ? 0 : 1);
 	if (!mmc)
