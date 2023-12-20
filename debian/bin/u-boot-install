@@ -159,6 +159,9 @@ if [[ -z "${TARGET}" ]]; then
 			if [[ "${board}" == "stm32mp1xx-olinuxino-som" ]] ; then
 				TARGET="stm32mp1-olinuxino-som"
 			fi
+			if [[ "${board}" == "stm32mp1xx-olinuxino-som-base" ]] ; then
+				TARGET="stm32mp1-olinuxino-som-base"
+			fi
 			INSTALL_FUNC=install_stm32mp1xx
 			;;
 
