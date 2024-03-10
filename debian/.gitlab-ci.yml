@@ -18,7 +18,7 @@ package:source:
     when: on_success
   before_script:
     - rm -vf ../u-boot-*olinuxino_* || true
-    - git checkout -B "$CI_BUILD_REF_NAME" "$CI_BUILD_REF"
+    - git checkout -B "$CI_COMMIT_REF_NAME" "$CI_COMMIT_SHA"
     - git fetch origin +refs/tags/$UBOOT_RELEASE:refs/tags/$UBOOT_RELEASE
     - sed -i "s/BUILD_DATE/$(date +%Y%m%d.%H%M%S)/g" debian/changelog
     - gbp export-orig --upstream-tree=$UBOOT_RELEASE
