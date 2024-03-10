@@ -506,6 +506,7 @@ static void setup_boot_mode(void)
 		sprintf(cmd, "%d", instance);
 		env_set("boot_device", "mmc");
 		env_set("boot_instance", cmd);
+		env_set("mmc_bootdev", cmd);
 		break;
 	case BOOT_FLASH_NAND:
 		env_set("boot_device", "nand");
