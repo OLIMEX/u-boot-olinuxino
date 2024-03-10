@@ -104,13 +104,20 @@ function install_stm32mp1xx
 		exit 1
 	fi
 
-	echo "Writing u-boot-spl.stm32"
-	dd if=${SPL} of=${DEV}p1
-	dd if=${SPL} of=${DEV}p2
-
-	echo "Writing u-boot.img"
-	dd if=${UBOOT} of=${DEV}p3
-
+	echo "Writing u-boot"
+	if [ -e "${DEV}boot0" ] ; then
+		SYSDEV="${DEV#/dev/}"
+		echo 0 > /sys/block/${SYSDEV}boot0/force_ro
+		echo 0 > /sys/block/${SYSDEV}boot1/force_ro
+		dd if=${SPL} of=${DEV}boot0
+		dd if=${SPL} of=${DEV}boot1
+		dd if=${UBOOT} of=${DEV}p1
+		mmc bootpart enable 1 1 ${DEV}
+	else
+		dd if=${SPL} of=${DEV}p1
+		dd if=${SPL} of=${DEV}p2
+		dd if=${UBOOT} of=${DEV}p3
+	fi
 }
 
 # Detect family
